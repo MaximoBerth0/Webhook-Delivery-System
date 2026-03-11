@@ -2,7 +2,7 @@ package delivery
 
 import "time"
 
-type Attempt struct {
+type DeliveryAttempt struct {
 	ID         string
 	DeliveryID string
 

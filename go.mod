@@ -1,3 +1,3 @@
-module github.com/MaximoBerth0/Webhook-Delivery-System
+module webhook-delivery-system
 
 go 1.25.0
