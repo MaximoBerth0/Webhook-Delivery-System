@@ -16,3 +16,12 @@ type Event struct {
 	Payload   []byte
 	CreatedAt time.Time
 }
+
+func IsValidEvent(e SubscribedEvent) bool {
+	switch e {
+	case EventUserCreated, EventUserUpdated, EventUserDeleted:
+		return true
+	default:
+		return false
+	}
+}

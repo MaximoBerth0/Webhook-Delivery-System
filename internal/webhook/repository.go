@@ -5,7 +5,7 @@ import (
 	"webhook-delivery-system/internal/event"
 )
 
-type Repository interface {
+type WebhookRepository interface {
 	Create(ctx context.Context, webhook *Webhook) error
 	GetByID(ctx context.Context, id string) (*Webhook, error)
 	ListByEvent(ctx context.Context, event event.SubscribedEvent) ([]Webhook, error)
