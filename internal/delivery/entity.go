@@ -14,12 +14,11 @@ const (
 var ErrInvalidAttempts = errors.New("max attempts must be >= 1")
 
 type Delivery struct {
-	ID          string
-	EventID     string
-	WebhookID   string
-	Attempts    int
-	MaxAttempts int
-	Status      Status
+	ID        string
+	EventID   string
+	WebhookID string
+	Attempts  int
+	Status    Status
 }
 
 func NewDelivery(id, eventID, webhookID string, maxAttempts int) (*Delivery, error) {
@@ -28,12 +27,11 @@ func NewDelivery(id, eventID, webhookID string, maxAttempts int) (*Delivery, err
 	}
 
 	return &Delivery{
-		ID:          id,
-		EventID:     eventID,
-		WebhookID:   webhookID,
-		Attempts:    0,
-		MaxAttempts: maxAttempts,
-		Status:      StatusPending,
+		ID:        id,
+		EventID:   eventID,
+		WebhookID: webhookID,
+		Attempts:  0,
+		Status:    StatusPending,
 	}, nil
 }
 
@@ -41,16 +39,16 @@ func (d *Delivery) RegisterAttempt() {
 	d.Attempts++
 }
 
-func (d *Delivery) CanRetry() bool {
-	return d.Attempts < d.MaxAttempts
+func (d *Delivery) CanRetry(maxAttempts int) bool {
+	return d.Attempts < maxAttempts
 }
 
 func (d *Delivery) MarkSuccess() {
 	d.Status = StatusSuccess
 }
 
-func (d *Delivery) MarkFailed() {
-	if d.CanRetry() {
+func (d *Delivery) MarkFailed(maxAttempts int) {
+	if d.CanRetry(maxAttempts) {
 		d.Status = StatusRetry
 		return
 	}

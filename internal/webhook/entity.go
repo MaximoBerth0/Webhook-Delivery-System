@@ -11,6 +11,7 @@ type Webhook struct {
 	SubscribedEvents []event.SubscribedEvent
 	Secret           string
 	Active           bool
+	MaxAttempts      int
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
