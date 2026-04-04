@@ -17,7 +17,7 @@ type Webhook struct {
 	UpdatedAt        time.Time
 }
 
-func NewWebhook(id, targetURL string, maxAttempts int) (*Webhook, error) {
+func NewWebhook(targetURL string, maxAttempts int) (*Webhook, error) {
 	if targetURL == "" {
 		return nil, errors.New("target URL is required")
 	}
@@ -27,7 +27,6 @@ func NewWebhook(id, targetURL string, maxAttempts int) (*Webhook, error) {
 	}
 
 	return &Webhook{
-		ID:          id,
 		TargetURL:   targetURL,
 		MaxAttempts: maxAttempts,
 		Active:      true,

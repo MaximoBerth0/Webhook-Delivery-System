@@ -1,6 +1,10 @@
 package delivery
 
-import "errors"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 type Status string
 
@@ -11,8 +15,6 @@ const (
 	StatusRetry   Status = "RETRY"
 )
 
-var ErrInvalidAttempts = errors.New("max attempts must be >= 1")
-
 type Delivery struct {
 	ID        string
 	EventID   string
@@ -21,13 +23,16 @@ type Delivery struct {
 	Status    Status
 }
 
-func NewDelivery(id, eventID, webhookID string, maxAttempts int) (*Delivery, error) {
-	if maxAttempts < 1 {
-		return nil, ErrInvalidAttempts
+func NewDelivery(eventID, webhookID string) (*Delivery, error) {
+	if eventID == "" {
+		return nil, fmt.Errorf("eventID is required")
+	}
+	if webhookID == "" {
+		return nil, fmt.Errorf("webhookID is required")
 	}
 
 	return &Delivery{
-		ID:        id,
+		ID:        uuid.NewString(),
 		EventID:   eventID,
 		WebhookID: webhookID,
 		Attempts:  0,
@@ -39,19 +44,14 @@ func (d *Delivery) RegisterAttempt() {
 	d.Attempts++
 }
 
-func (d *Delivery) CanRetry(maxAttempts int) bool {
-	return d.Attempts < maxAttempts
-}
-
 func (d *Delivery) MarkSuccess() {
 	d.Status = StatusSuccess
 }
 
-func (d *Delivery) MarkFailed(maxAttempts int) {
-	if d.CanRetry(maxAttempts) {
-		d.Status = StatusRetry
-		return
-	}
+func (d *Delivery) MarkRetry() {
+	d.Status = StatusRetry
+}
 
+func (d *Delivery) MarkFailed() {
 	d.Status = StatusFailed
 }
