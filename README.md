@@ -37,3 +37,22 @@ The system guarantees reliable delivery, retries, idempotency, and observability
 * Security by Default - Webhook requests include HMAC signatures for verification by receiving services.
 
 * Concurrency with Consistency - Workers operate in parallel while preserving strict delivery invariants.
+
+---
+
+# Supported Events
+
+The system is domain-agnostic and can deliver any event type registered in the platform. Events follow the `resource.action` convention used by major payment providers such as Stripe and PayPal.
+
+Currently, the following event types are built-in:
+
+**Customers**
+`customer.created` · `customer.updated` · `customer.deleted`
+
+**Payments**
+`payment.created` · `payment.completed` · `payment.failed` · `payment.refunded` · `payment.cancelled`
+
+**Subscriptions**
+`subscription.created` · `subscription.renewed` · `subscription.cancelled` · `subscription.past_due`
+
+New event types can be added by extending the event registry without modifying the delivery pipeline, worker logic, or any other part of the system.

@@ -2,16 +2,12 @@ package event
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"time"
-
-	"github.com/google/uuid"
+	"fmt"
 )
 
 type CreateEventRequest struct {
-	Type    string
-	Payload json.RawMessage
+	Type    SubscribedEvent
+	Payload []byte
 }
 
 type Service struct {
@@ -23,18 +19,10 @@ func NewService(repo EventRepository) *Service {
 }
 
 func (s *Service) CreateEvent(ctx context.Context, req CreateEventRequest) error {
-
-	if req.Type == "" {
-		return errors.New("event type required")
+	event, err := NewEvent(req.Type, req.Payload)
+	if err != nil {
+		return fmt.Errorf("creating event: %w", err)
 	}
-
-	event := &Event{
-		ID:        uuid.New().String(),
-		Type:      SubscribedEvent(req.Type),
-		Payload:   req.Payload,
-		CreatedAt: time.Now().UTC(),
-	}
-
 	return s.repo.Create(ctx, event)
 }
 
