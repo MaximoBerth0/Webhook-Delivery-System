@@ -2,8 +2,7 @@ package webhook
 
 import (
 	"context"
-	"errors"
-	"net/url"
+	"fmt"
 	"webhook-delivery-system/internal/event"
 )
 
@@ -15,54 +14,36 @@ func NewService(repo WebhookRepository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateWebhook(ctx context.Context, webhook *Webhook) error {
+type CreateWebhookRequest struct {
+	TargetURL        string
+	Secret           string
+	MaxAttempts      int
+	SubscribedEvents []event.SubscribedEvent
+}
 
-	if webhook == nil {
-		return errors.New("webhook required")
+func (s *Service) CreateWebhook(ctx context.Context, req CreateWebhookRequest) error {
+	w, err := NewWebhook(req.TargetURL, req.Secret, req.MaxAttempts, req.SubscribedEvents)
+	if err != nil {
+		return fmt.Errorf("creating webhook: %w", err)
 	}
+	return s.repo.Create(ctx, w)
+}
 
-	if webhook.TargetURL == "" {
-		return errors.New("url required")
+func (s *Service) UpdateWebhook(ctx context.Context, id string, req CreateWebhookRequest) error {
+	w, err := NewWebhook(req.TargetURL, req.Secret, req.MaxAttempts, req.SubscribedEvents)
+	if err != nil {
+		return fmt.Errorf("updating webhook: %w", err)
 	}
-
-	if _, err := url.ParseRequestURI(webhook.TargetURL); err != nil {
-		return errors.New("invalid webhook url")
-	}
-
-	if len(webhook.SubscribedEvents) == 0 {
-		return errors.New("at least one event required")
-	}
-
-	for _, e := range webhook.SubscribedEvents {
-		if !event.IsValidEvent(e) {
-			return errors.New("invalid event type")
-		}
-	}
-
-	return s.repo.Create(ctx, webhook)
+	w.ID = id
+	return s.repo.Update(ctx, w)
 }
 
 func (s *Service) GetWebhook(ctx context.Context, id string) (*Webhook, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) ListWebhooksByEvent(ctx context.Context, event event.SubscribedEvent) ([]Webhook, error) {
-	return s.repo.ListByEvent(ctx, event)
-}
-
-func (s *Service) UpdateWebhook(ctx context.Context, webhook *Webhook) error {
-
-	if webhook == nil {
-		return errors.New("webhook required")
-	}
-
-	for _, e := range webhook.SubscribedEvents {
-		if !event.IsValidEvent(e) {
-			return errors.New("invalid event type")
-		}
-	}
-
-	return s.repo.Update(ctx, webhook)
+func (s *Service) ListWebhooksByEvent(ctx context.Context, e event.SubscribedEvent) ([]Webhook, error) {
+	return s.repo.ListByEvent(ctx, e)
 }
 
 func (s *Service) DeleteWebhook(ctx context.Context, id string) error {

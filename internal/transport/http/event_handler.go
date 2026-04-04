@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"net/http"
-
 	"webhook-delivery-system/internal/event"
 )
 
@@ -15,29 +14,28 @@ func NewHandler(service *event.Service) *Handler {
 	return &Handler{service: service}
 }
 
-type CreateEventRequest struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
-}
-
 func (h *Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req CreateEventRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
-		return
+	var body struct {
+		Type    event.SubscribedEvent `json:"type"`
+		Payload json.RawMessage       `json:"payload"` // JSON crudo
 	}
 
-	err := h.service.CreateEvent(ctx, event.CreateEventRequest{
-		Type:    req.Type,
-		Payload: req.Payload,
-	})
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
 
-	if err != nil {
-		http.Error(w, "failed to create event", http.StatusInternalServerError)
+	req := event.CreateEventRequest{
+		Type:    body.Type,
+		Payload: []byte(body.Payload),
+	}
+
+	if err := h.service.CreateEvent(r.Context(), req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"status": "event created"})
 }

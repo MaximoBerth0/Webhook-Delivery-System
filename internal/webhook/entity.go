@@ -2,8 +2,12 @@ package webhook
 
 import (
 	"errors"
+	"fmt"
+	"net/url"
 	"time"
 	"webhook-delivery-system/internal/event"
+
+	"github.com/google/uuid"
 )
 
 type Webhook struct {
@@ -17,20 +21,35 @@ type Webhook struct {
 	UpdatedAt        time.Time
 }
 
-func NewWebhook(targetURL string, maxAttempts int) (*Webhook, error) {
+func NewWebhook(targetURL, secret string, maxAttempts int, events []event.SubscribedEvent) (*Webhook, error) {
 	if targetURL == "" {
 		return nil, errors.New("target URL is required")
 	}
-
+	if _, err := url.ParseRequestURI(targetURL); err != nil {
+		return nil, errors.New("invalid target URL")
+	}
+	if secret == "" {
+		return nil, errors.New("secret is required")
+	}
 	if maxAttempts < 1 {
 		return nil, errors.New("max attempts must be >= 1")
 	}
-
+	if len(events) == 0 {
+		return nil, errors.New("at least one event required")
+	}
+	for _, e := range events {
+		if !event.IsValidEvent(e) {
+			return nil, fmt.Errorf("invalid event type: %s", e)
+		}
+	}
 	return &Webhook{
-		TargetURL:   targetURL,
-		MaxAttempts: maxAttempts,
-		Active:      true,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:               uuid.NewString(),
+		TargetURL:        targetURL,
+		Secret:           secret,
+		MaxAttempts:      maxAttempts,
+		SubscribedEvents: events,
+		Active:           true,
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
 	}, nil
 }

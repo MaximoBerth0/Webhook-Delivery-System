@@ -15,7 +15,7 @@ func NewService(repo DeliveryRepository) *Service {
 func (s *Service) Create(ctx context.Context, eventID, webhookID string) (*Delivery, error) {
 	d, err := NewDelivery(eventID, webhookID)
 	if err != nil {
-		return nil, err // domain error
+		return nil, err // add domain error
 	}
 
 	if err := s.repo.Create(ctx, d); err != nil {
