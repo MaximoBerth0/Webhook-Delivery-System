@@ -3,21 +3,25 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"webhook-delivery-system/internal/event"
 )
 
-type Handler struct {
+type EventHandler struct {
 	service *event.Service
 }
 
-func NewHandler(service *event.Service) *Handler {
-	return &Handler{service: service}
+const defaultLimit = 20
+const maxLimit = 100
+
+func NewEventHandler(service *event.Service) *EventHandler {
+	return &EventHandler{service: service}
 }
 
-func (h *Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
+func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Type    event.SubscribedEvent `json:"type"`
-		Payload json.RawMessage       `json:"payload"` // JSON crudo
+		Payload json.RawMessage       `json:"payload"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -38,4 +42,25 @@ func (h *Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"status": "event created"})
+}
+
+func (h *EventHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
+	limit := defaultLimit
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > maxLimit {
+				limit = maxLimit
+			}
+		}
+	}
+
+	events, err := h.service.ListEvents(r.Context(), limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
 }
