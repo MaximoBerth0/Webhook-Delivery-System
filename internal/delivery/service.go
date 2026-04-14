@@ -37,6 +37,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Delivery, error) {
 	return d, nil
 }
 
+func (s *Service) GetByWebhookID(ctx context.Context, webhookID string) ([]Delivery, error) {
+	return s.repo.GetByWebhookID(ctx, webhookID)
+}
+
 func (s *Service) GetPending(ctx context.Context, limit int) ([]Delivery, error) {
 	deliveries, err := s.repo.GetPending(ctx, limit)
 	if err != nil {

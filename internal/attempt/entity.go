@@ -1,6 +1,11 @@
 package attempt
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var ErrInvalidDeliveryID = errors.New("invalid delivery id")
 
 type Status string
 
@@ -19,4 +24,15 @@ type DeliveryAttempt struct {
 	ResponseCode  int
 	ErrorMessage  string
 	CreatedAt     time.Time
+}
+
+func NewDeliveryAttempt(deliveryID string) (*DeliveryAttempt, error) {
+	if deliveryID == "" {
+		return nil, ErrInvalidDeliveryID
+	}
+	return &DeliveryAttempt{
+		DeliveryID: deliveryID,
+		Status:     StatusPending,
+		CreatedAt:  time.Now(),
+	}, nil
 }
