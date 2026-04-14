@@ -36,22 +36,21 @@ func main() {
 	dSvc := delivery.NewService(dRepo)
 	aSvc := attempt.NewService(aRepo)
 
-	_ = wSvc
-	_ = dSvc
-	_ = aSvc
-
 	// handlers
-	eventHandler := transporthttp.NewHandler(eSvc)
+	eventHandler := transporthttp.NewEventHandler(eSvc)
+	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc)
+	webhookHandler := transporthttp.NewWebhookHandler(wSvc)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /events", eventHandler.CreateEvent)
+	// router
+	router := transporthttp.NewRouter(deliveryHandler, eventHandler, webhookHandler)
 
 	addr := os.Getenv("ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
+
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }

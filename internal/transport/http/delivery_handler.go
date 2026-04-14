@@ -6,7 +6,7 @@ import (
 	"webhook-delivery-system/internal/attempt"
 	"webhook-delivery-system/internal/delivery"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi"
 )
 
 type DeliveryHandler struct {

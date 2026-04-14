@@ -54,6 +54,35 @@ func (r *DeliveryRepository) GetByID(ctx context.Context, id string) (*delivery.
 	return d, nil
 }
 
+func (r *DeliveryRepository) GetByWebhookID(ctx context.Context, webhookID string) ([]delivery.Delivery, error) {
+	query := `SELECT id, event_id, webhook_id, attempts, status FROM deliveries WHERE webhook_id = $1`
+
+	rows, err := r.db.Query(ctx, query, webhookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deliveries []delivery.Delivery
+	for rows.Next() {
+		var d delivery.Delivery
+		err := rows.Scan(
+			&d.ID,
+			&d.EventID,
+			&d.WebhookID,
+			&d.Attempts,
+			&d.Status,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+		deliveries = append(deliveries, d)
+	}
+
+	return deliveries, nil
+}
+
 func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]delivery.Delivery, error) {
 	query := `
 		SELECT id, event_id, webhook_id, attempts, status

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"webhook-delivery-system/internal/event"
 	"webhook-delivery-system/internal/webhook"
+
+	"github.com/go-chi/chi"
 )
 
 // webhook_handler.go — 4 HTTP functions
@@ -63,8 +65,7 @@ func (h *WebhookHandler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	// extract id according to the router
-	id := ""
+	id := chi.URLParam(r, "id")
 
 	result, err := h.service.GetWebhook(r.Context(), id)
 	if err != nil {
@@ -77,7 +78,7 @@ func (h *WebhookHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) UpdateWebhook(w http.ResponseWriter, r *http.Request) {
-	id := "" // according to the router
+	id := chi.URLParam(r, "id")
 
 	var body struct {
 		TargetURL        string                  `json:"target_url"`
@@ -107,7 +108,7 @@ func (h *WebhookHandler) UpdateWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := ""
+	id := chi.URLParam(r, "id")
 
 	err := h.service.DeleteWebhook(r.Context(), id)
 	if err != nil {
