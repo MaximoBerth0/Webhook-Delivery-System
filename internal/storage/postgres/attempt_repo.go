@@ -16,19 +16,18 @@ func NewAttemptRepository(db storage.DBTX) *AttemptRepository {
 
 func (r *AttemptRepository) Create(ctx context.Context, a *attempt.DeliveryAttempt) error {
 	query := `
-		INSERT INTO delivery_attempts (id, delivery_id, attempt_number, status, response_code, error_message, created_at)
+		INSERT INTO delivery_attempts (delivery_id, attempt_number, status, response_code, error_message, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
 	`
-	_, err := r.db.Exec(ctx, query,
-		a.ID,
+	return r.db.QueryRow(ctx, query,
 		a.DeliveryID,
 		a.AttemptNumber,
 		a.Status,
 		a.ResponseCode,
 		a.ErrorMessage,
 		a.CreatedAt,
-	)
-	return err
+	).Scan(&a.ID)
 }
 
 func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID string) ([]attempt.DeliveryAttempt, error) {

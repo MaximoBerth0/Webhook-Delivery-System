@@ -6,8 +6,6 @@ import (
 	"net/url"
 	"time"
 	"webhook-delivery-system/internal/event"
-
-	"github.com/google/uuid"
 )
 
 type Webhook struct {
@@ -43,7 +41,6 @@ func NewWebhook(targetURL, secret string, maxAttempts int, events []event.Subscr
 		}
 	}
 	return &Webhook{
-		ID:               uuid.NewString(),
 		TargetURL:        targetURL,
 		Secret:           secret,
 		MaxAttempts:      maxAttempts,

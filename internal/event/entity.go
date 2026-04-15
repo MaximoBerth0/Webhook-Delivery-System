@@ -3,8 +3,6 @@ package event
 import (
 	"errors"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type SubscribedEvent string
@@ -44,7 +42,6 @@ func NewEvent(eventType SubscribedEvent, payload []byte) (*Event, error) {
 		return nil, errors.New("payload is required")
 	}
 	return &Event{
-		ID:        uuid.NewString(),
 		Type:      eventType,
 		Payload:   payload,
 		CreatedAt: time.Now().UTC(),

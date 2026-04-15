@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"time"
 	"webhook-delivery-system/internal/event"
 	"webhook-delivery-system/internal/storage"
 
@@ -20,23 +19,11 @@ func NewEventRepository(db storage.DBTX) *EventRepository {
 
 func (r *EventRepository) Create(ctx context.Context, e *event.Event) error {
 	query := `
-		INSERT INTO events (id, type, payload, created_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO events (type, payload, created_at)
+		VALUES ($1, $2, $3)
+		RETURNING id
 	`
-	if e.CreatedAt.IsZero() {
-		e.CreatedAt = time.Now()
-	}
-
-	_, err := r.db.Exec(
-		ctx,
-		query,
-		e.ID,
-		e.Type,
-		e.Payload,
-		e.CreatedAt,
-	)
-
-	return err
+	return r.db.QueryRow(ctx, query, e.Type, e.Payload, e.CreatedAt).Scan(&e.ID)
 }
 
 func (r *EventRepository) GetByID(ctx context.Context, id string) (*event.Event, error) {

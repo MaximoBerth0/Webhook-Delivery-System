@@ -11,7 +11,7 @@ func NewService(repo DeliveryAttemptRepository) *Service {
 }
 
 func (s *Service) CreateAttempt(ctx context.Context, deliveryID string) error {
-	attempt, err := NewDeliveryAttempt(deliveryID) // 👈 validation happens here
+	attempt, err := NewDeliveryAttempt(deliveryID)
 	if err != nil {
 		return err
 	}

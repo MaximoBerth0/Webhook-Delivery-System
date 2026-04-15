@@ -19,21 +19,18 @@ func NewDeliveryRepository(db storage.DBTX) *DeliveryRepository {
 
 func (r *DeliveryRepository) Create(ctx context.Context, d *delivery.Delivery) error {
 	query := `
-		INSERT INTO deliveries (id, event_id, webhook_id, attempts, status)
-		VALUES ($1, $2, $3, $4, $5)
-	`
-
-	_, err := r.db.Exec(
+        INSERT INTO deliveries (event_id, webhook_id, attempts, status)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+    `
+	return r.db.QueryRow(
 		ctx,
 		query,
-		d.ID,
 		d.EventID,
 		d.WebhookID,
 		d.Attempts,
 		d.Status,
-	)
-
-	return err
+	).Scan(&d.ID)
 }
 
 func (r *DeliveryRepository) GetByID(ctx context.Context, id string) (*delivery.Delivery, error) {
