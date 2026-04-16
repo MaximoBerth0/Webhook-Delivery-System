@@ -5,7 +5,7 @@ CREATE TABLE delivery_attempts (
     status          TEXT        NOT NULL,
     response_code   INT,
     error_message   TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT fk_attempt_delivery FOREIGN KEY(delivery_id) REFERENCES deliveries(id)
 );
