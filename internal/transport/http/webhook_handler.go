@@ -56,7 +56,7 @@ func (h *WebhookHandler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 		SubscribedEvents: body.SubscribedEvents,
 	}
 
-	if err := h.service.CreateWebhook(r.Context(), req); err != nil {
+	if _, err := h.service.CreateWebhook(r.Context(), req); err != nil {
 		http.Error(w, "failed to create webhook", http.StatusInternalServerError)
 		return
 	}

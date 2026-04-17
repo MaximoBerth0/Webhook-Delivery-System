@@ -8,12 +8,40 @@ import (
 
 	"webhook-delivery-system/integrations/helpers"
 	"webhook-delivery-system/internal/delivery"
+	"webhook-delivery-system/internal/event"
+	"webhook-delivery-system/internal/webhook"
 )
+
+func seedWebhookAndEvent(t *testing.T, env *helpers.TestEnv) (webhookID, eventID string) {
+	t.Helper()
+	ctx := context.Background()
+
+	wh, err := env.WebhookSvc.CreateWebhook(ctx, webhook.CreateWebhookRequest{
+		TargetURL:        "https://example.com/hook",
+		Secret:           "secret124244",
+		MaxAttempts:      3,
+		SubscribedEvents: []event.SubscribedEvent{event.EventCustomerCreated},
+	})
+	if err != nil {
+		t.Fatalf("seed webhook: %v", err)
+	}
+
+	ev, err := env.EventSvc.CreateEvent(ctx, event.CreateEventRequest{
+		Type:    event.EventCustomerCreated,
+		Payload: []byte(`{"id":"123"}`),
+	})
+	if err != nil {
+		t.Fatalf("seed event: %v", err)
+	}
+
+	return wh.ID, ev.ID
+}
 
 func TestDelivery_GetByID(t *testing.T) {
 	env := helpers.SetupEnv(t)
+	webhookID, eventID := seedWebhookAndEvent(t, env)
 
-	created, err := env.DeliverySvc.Create(context.Background(), "event-id-1", "webhook-id-1")
+	created, err := env.DeliverySvc.Create(context.Background(), eventID, webhookID)
 	if err != nil {
 		t.Fatalf("seed delivery: %v", err)
 	}
@@ -53,11 +81,18 @@ func TestDelivery_GetByID_NotFound(t *testing.T) {
 
 func TestDelivery_ListByWebhook(t *testing.T) {
 	env := helpers.SetupEnv(t)
+	webhookID, eventID1 := seedWebhookAndEvent(t, env)
 
-	// seed two deliveries for the same webhook
-	webhookID := "webhook-id-1"
-	env.DeliverySvc.Create(context.Background(), "event-id-1", webhookID)
-	env.DeliverySvc.Create(context.Background(), "event-id-2", webhookID)
+	ev2, err := env.EventSvc.CreateEvent(context.Background(), event.CreateEventRequest{
+		Type:    event.EventCustomerCreated,
+		Payload: []byte(`{"id":"456"}`),
+	})
+	if err != nil {
+		t.Fatalf("seed second event: %v", err)
+	}
+
+	env.DeliverySvc.Create(context.Background(), eventID1, webhookID)
+	env.DeliverySvc.Create(context.Background(), ev2.ID, webhookID)
 
 	resp, err := http.Get(env.Server.URL + "/webhooks/" + webhookID + "/deliveries")
 	if err != nil {
@@ -80,8 +115,9 @@ func TestDelivery_ListByWebhook(t *testing.T) {
 
 func TestDelivery_GetAttempts_Empty(t *testing.T) {
 	env := helpers.SetupEnv(t)
+	webhookID, eventID := seedWebhookAndEvent(t, env)
 
-	created, err := env.DeliverySvc.Create(context.Background(), "event-id-1", "webhook-id-1")
+	created, err := env.DeliverySvc.Create(context.Background(), eventID, webhookID)
 	if err != nil {
 		t.Fatalf("seed delivery: %v", err)
 	}

@@ -15,6 +15,15 @@ import (
 	"webhook-delivery-system/internal/webhook"
 )
 
+/*
+implement OpenTelemetry for metrics, logs and tracing
+
+tp := otelSetup() // tracer provider
+defer tp.Shutdown(ctx)
+
+tracer := otel.Tracer("webhook-system")
+*/
+
 func main() {
 	ctx := context.Background()
 

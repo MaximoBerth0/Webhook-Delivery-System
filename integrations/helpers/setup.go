@@ -23,6 +23,8 @@ type TestEnv struct {
 	Server      *httptest.Server
 	Pool        *pgxpool.Pool
 	DeliverySvc *delivery.Service
+	WebhookSvc  *webhook.Service
+	EventSvc    *event.Service
 }
 
 func SetupEnv(t *testing.T) *TestEnv {
@@ -82,5 +84,7 @@ func SetupEnv(t *testing.T) *TestEnv {
 		Server:      server,
 		Pool:        pool,
 		DeliverySvc: dSvc,
+		WebhookSvc:  wSvc,
+		EventSvc:    eSvc,
 	}
 }

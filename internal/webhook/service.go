@@ -21,12 +21,15 @@ type CreateWebhookRequest struct {
 	SubscribedEvents []event.SubscribedEvent
 }
 
-func (s *Service) CreateWebhook(ctx context.Context, req CreateWebhookRequest) error {
+func (s *Service) CreateWebhook(ctx context.Context, req CreateWebhookRequest) (*Webhook, error) {
 	w, err := NewWebhook(req.TargetURL, req.Secret, req.MaxAttempts, req.SubscribedEvents)
 	if err != nil {
-		return fmt.Errorf("creating webhook: %w", err)
+		return nil, fmt.Errorf("creating webhook: %w", err)
 	}
-	return s.repo.Create(ctx, w)
+	if err := s.repo.Create(ctx, w); err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 func (s *Service) UpdateWebhook(ctx context.Context, id string, req CreateWebhookRequest) error {

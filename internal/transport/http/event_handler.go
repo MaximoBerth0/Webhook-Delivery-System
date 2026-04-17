@@ -35,7 +35,7 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		Payload: []byte(body.Payload),
 	}
 
-	if err := h.service.CreateEvent(r.Context(), req); err != nil {
+	if _, err := h.service.CreateEvent(r.Context(), req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
