@@ -9,18 +9,8 @@ import (
 )
 
 /*
-
-the cycle design
-
-Dispatcher.loop()
-    └── deliveryRepo.GetPending()
-            └── DeliveryWorker.Process(delivery)
-                    ├── webhookRepo.GetByID()   → URL, secret, MaxAttempts
-                    ├── eventRepo.GetByID()     → type, payload
-                    └── retry loop
-                            ├── dispatch()      → HTTP POST + HMAC
-                            ├── attemptSvc.Create()  → records outcome
-                            └── deliveryRepo.Update() → success | failed
+1. ensure SELECT ... FOR UPDATE SKIP LOCKED in the GetPending query
+2. remove hardcoded variables
 */
 
 type Dispatcher struct {
@@ -90,7 +80,8 @@ func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 			log.Printf("worker %d: picked up %d deliveries", workerID, len(deliveries))
 
 			for _, del := range deliveries {
-				d.deliveryWorker.Process(ctx, del)
+				del := del
+				d.deliveryWorker.processDelivery(ctx, &del)
 			}
 		}
 	}
