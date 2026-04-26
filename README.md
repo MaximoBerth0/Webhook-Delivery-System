@@ -1,67 +1,124 @@
 # Webhook Delivery System
 
-A reliable webhook delivery service designed for distributed systems that must deliver events to external endpoints safely and consistently.
+A reliable, production-ready webhook delivery service built for distributed systems. Guarantees event delivery with retries, idempotency, HMAC signatures, and full observability even under network failures, slow receivers, or service crashes.
 
-The system guarantees reliable delivery, retries, idempotency, and observability, even when networks fail, receivers are slow, or services crash. It is built to handle high concurrency and failure scenarios common in payment platforms, SaaS integrations, and event-driven architectures.
-
----
-
-# Design Principles 
-
-* Reliability First - The system assumes that failures are normal and designs around them.
-
-* Deterministic Retries - Event payloads are immutable after creation to ensure consistent retry behavior.
-
-* Idempotent Safety - Duplicate deliveries are expected and handled safely.
-
-* Failure Isolation - Unrecoverable events are moved to a dead letter queue rather than blocking the system.
-
-* Security by Default - Webhook requests include HMAC signatures for verification by receiving services.
-
-* Concurrency with Consistency - Workers operate in parallel while preserving strict delivery invariants.
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Domain Model](#domain-model)
+- [API Reference](#api-reference)
+- [Event Types](#event-types)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Running Tests](#running-tests)
+- [Deployment](#deployment)
+
 ---
 
-## What this system does
+## Overview
 
-This system acts as an intermediary between event producers (external backends) and event consumers (subscribed endpoints).
+This system acts as an intermediary between **event producers** (external backends) and **event consumers** (subscribed endpoints). When an event is published, the system automatically finds all registered webhooks for that event type, creates delivery records, and dispatches HTTP requests — handling retries, failures, and observability transparently.
 
 ```
 External System                      Subscribed Endpoints
-(payments, customers, etc)           (registered by clients)
-        │                                      ▲
-        │  POST /events                        │
-        ▼                                      │
-  THIS SYSTEM                                  │
-  stores the event                             │
-  finds subscribed webhooks  ─────────────────►│
-  creates deliveries                  delivers payload
-  retries on failure
+(payments, customers, etc.)          (registered by clients)
+        │                                       ▲
+        │  POST /events                         │
+        ▼                                       │
+  WEBHOOK DELIVERY SYSTEM                       │
+  ├── validates & stores event                  │
+  ├── resolves subscribed webhooks ─────────────┤
+  ├── creates delivery records        delivers payload
+  ├── dispatches worker pool
+  └── retries with exponential back-off
 ```
+
+---
+
+## Features
+
+- **Coordinated Workers** — A dispatcher pool manages concurrent delivery goroutines with controlled concurrency and graceful shutdown.
+- **HMAC Signatures** — Every outgoing request is signed using `HMAC-SHA256` so receiving services can verify authenticity.
+- **Idempotency** — Duplicate event submissions are detected and deduplicated safely without side effects.
+- **Exponential Back-off** — Failed deliveries are retried with exponentially increasing delays up to a configurable `MaxAttempts` limit.
+- **Dead Letter Queue** — Deliveries that exhaust all retries are moved to a DLQ instead of blocking the system.
+- **Logs & Tracing** — Structured logging and distributed tracing (OpenTelemetry) across all layers.
+- **Unit & Integration Tests** — Full test coverage for domain logic and end-to-end HTTP flows.
+- **AWS Deployment** — Deployed on AWS (ECS + RDS Postgres) with infrastructure managed via Terraform / CDK.
+- **Frontend Client** — Connected to a Vercel-hosted frontend for webhook management and delivery monitoring.
+
+---
+
+## Tech Stack
+
+| Layer          | Technology                          |
+|----------------|-------------------------------------|
+| Language       | Go 1.25                            |
+| Database       | PostgreSQL (AWS RDS)                |
+| HTTP Router    | `net/http` / Chi                    |
+| Workers        | Native goroutines + waitGruops        |
+| Observability  | OpenTelemetry, structured JSON logs |
+| Auth / Security| HMAC-SHA256 signatures              |
+| Deployment     | AWS ECS (Fargate) + RDS             |
+| Frontend       | Next.js on Vercel                   |
+| Testing        | `testing` pkg, `testcontainers-go`  |
 
 ---
 
 ## Architecture
 
-The system is divided into 4 domain modules, each with its own entity, service, and repository:
+The system is organized into **4 domain modules**, each fully encapsulated with its own entity, service, and repository layer.
 
-### `event`
-Receives events from external systems. Validates the event type against a known list of constants and stores it. Once created, it triggers the delivery process.
+```
+┌─────────────────────────────────────────────────────────┐
+│                        HTTP Layer                        │
+│           (handlers decode/encode HTTP ↔ domain)         │
+└────────────┬────────────┬────────────┬───────────────────┘
+             │            │            │
+        ┌────▼───┐  ┌─────▼──┐  ┌─────▼────┐
+        │ event  │  │ webhook│  │ delivery │
+        │service │  │service │  │ service  │
+        └────┬───┘  └─────┬──┘  └─────┬────┘
+             │            │            │
+        ┌────▼────────────▼────────────▼────┐
+        │           Repository Layer         │
+        │         (PostgreSQL via RDS)        │
+        └────────────────────────────────────┘
+                          │
+              ┌───────────▼───────────┐
+              │     Worker Pool        │
+              │  (attempt dispatcher)  │
+              │  exponential back-off  │
+              └───────────────────────┘
+```
 
-### `webhook`
-Manages endpoint registrations. External clients register their URLs here, specifying which event types they want to receive, a secret for signature verification, and a maximum number of retry attempts.
+### Modules
 
-### `delivery`
-Represents a single attempt to deliver an event to a webhook. Created automatically when an event arrives and a matching subscribed webhook is found. Tracks status (`pending`, `success`, `failed`) and attempt count.
+| Module     | Responsibility                                                                 |
+|------------|--------------------------------------------------------------------------------|
+| `event`    | Validates and stores incoming events. Triggers the delivery pipeline.          |
+| `webhook`  | Manages endpoint registrations, secrets, event subscriptions, and retry config.|
+| `delivery` | Represents a single event-to-webhook delivery. Tracks status and attempt count.|
+| `attempt`  | Records each HTTP call: response status, body, and timestamp.                  |
 
-### `attempt`
-Represents each individual HTTP call made to a webhook endpoint. Stores the response status, response body, and timestamp. A delivery can have multiple attempts depending on `MaxAttempts`.
+### Layer responsibilities
+
+| Layer        | Responsibility                                                           |
+|--------------|--------------------------------------------------------------------------|
+| `handler`    | Decode HTTP requests, translate to domain types, write HTTP responses.   |
+| `service`    | Business logic and orchestration between modules.                        |
+| `repository` | Data persistence and database queries.                                   |
+| `entity`     | Domain rules, validation, and constructors. No HTTP or JSON knowledge.   |
 
 ---
 
-## Domain relationships
+## Domain Model
 
 ```
 Event (1) ──────────────► Delivery (N)
@@ -71,104 +128,210 @@ Webhook (1) ─────────────►     │
                           Attempt (N)
 ```
 
-One event can generate multiple deliveries (one per subscribed webhook).  
-One delivery can generate multiple attempts (retries on failure).
+- One **event** generates one **delivery** per subscribed webhook.
+- One **delivery** generates one or more **attempts** depending on `MaxAttempts`.
 
----
-
-## Event types
-
-Events are defined as constants in the `event` package. Clients can query available types via the API.
-
-| Category     | Event                       |
-|--------------|-----------------------------|
-| customer     | customer.created            |
-| customer     | customer.updated            |
-| customer     | customer.deleted            |
-| payment      | payment.created             |
-| payment      | payment.completed           |
-| payment      | payment.failed              |
-| payment      | payment.refunded            |
-| payment      | payment.cancelled           |
-| subscription | subscription.created        |
-| subscription | subscription.renewed        |
-| subscription | subscription.cancelled      |
-| subscription | subscription.past_due       |
-
-**These events can be modified and adapted to any external backend**
-
----
-
-## API
-
-### For external systems (machine to machine)
-```
-POST  /events                    Publish a new event
-GET   /events/types              List all available event types
-```
-
-### For webhook administration
-```
-POST   /webhooks                 Register a new webhook endpoint
-GET    /webhooks/:id             Get webhook details
-PUT    /webhooks/:id             Update webhook configuration
-DELETE /webhooks/:id             Remove a webhook
-```
-
-### For observability
-```
-GET  /webhooks/:id/deliveries    List all deliveries for a webhook
-GET  /deliveries/:id             Get a specific delivery status
-GET  /deliveries/:id/attempts    List all attempts for a delivery
-```
-
----
-
-## Internal event flow
+### Internal event flow
 
 ```
 POST /events  { type, payload }
         │
         ▼
 event.Service.CreateEvent()
-        │  validates type, stores event
+        │  validates type, deduplicates, stores event
         ▼
 Find all webhooks subscribed to this event type
         │
-        ▼  for each webhook
+        ▼  (for each matching webhook)
 delivery.Service.Create()
-        │  creates delivery with status: pending
+        │  creates delivery record → status: pending
         ▼
-attempt.Service  (worker / dispatcher)
-        │  makes HTTP POST to webhook endpoint
-        ├── 2xx  →  delivery status: success
-        └── error → retry up to MaxAttempts
-                      └── all failed → delivery status: failed
+Worker Pool picks up delivery
+        │  signs payload with HMAC-SHA256
+        │  POST → webhook endpoint
+        ├── 2xx  ──────────────────► delivery status: success
+        └── error → exponential back-off
+                        └── exhausted → delivery status: failed → DLQ
 ```
 
 ---
 
-## Responsibilities per layer
+## API Reference
 
-| Layer      | Responsibility                                      |
-|------------|-----------------------------------------------------|
-| Handler    | Decode HTTP request, translate to domain types, write HTTP response |
-| Service    | Business logic, orchestration between modules       |
-| Repository | Data persistence, database queries                  |
-| Entity     | Domain rules, validation, constructors              |
+### Events (machine-to-machine)
+
+| Method | Endpoint          | Description                  |
+|--------|-------------------|------------------------------|
+| `POST` | `/events`         | Publish a new event          |
+| `GET`  | `/events/types`   | List all available event types |
+
+**POST /events**
+```json
+{
+  "type": "payment.completed",
+  "payload": {
+    "payment_id": "pay_123",
+    "amount": 4999,
+    "currency": "USD"
+  }
+}
+```
 
 ---
 
-## Key design decisions
+### Webhooks (administration)
 
-**Events are published by machines, not humans.**  
-`POST /events` is called by an external backend, not a user interface.
+| Method   | Endpoint         | Description                    |
+|----------|------------------|--------------------------------|
+| `POST`   | `/webhooks`      | Register a new webhook endpoint |
+| `GET`    | `/webhooks/:id`  | Get webhook details            |
+| `PUT`    | `/webhooks/:id`  | Update webhook configuration   |
+| `DELETE` | `/webhooks/:id`  | Remove a webhook               |
 
-**Deliveries and attempts are created internally.**  
-No external caller creates a delivery or attempt directly. They are a result of an event arriving.
+**POST /webhooks**
+```json
+{
+  "url": "https://your-service.com/hooks",
+  "event_types": ["payment.completed", "payment.failed"],
+  "secret": "whsec_your_signing_secret",
+  "max_attempts": 5
+}
+```
 
-**The domain has no knowledge of HTTP or JSON.**  
-All encoding/decoding happens in the handler layer. Services and entities only deal with domain types.
+---
 
-**Observability is the only human-facing concern.**  
-Humans interact with the system only to register webhooks and monitor delivery status.
+### Observability
+
+| Method | Endpoint                           | Description                        |
+|--------|------------------------------------|------------------------------------|
+| `GET`  | `/webhooks/:id/deliveries`         | List all deliveries for a webhook  |
+| `GET`  | `/deliveries/:id`                  | Get a specific delivery status     |
+| `GET`  | `/deliveries/:id/attempts`         | List all attempts for a delivery   |
+
+---
+
+## Event Types
+
+Events are defined as constants in the `event` package and can be adapted to any backend domain.
+
+| Category       | Event Type                   |
+|----------------|------------------------------|
+| `customer`     | `customer.created`           |
+| `customer`     | `customer.updated`           |
+| `customer`     | `customer.deleted`           |
+| `payment`      | `payment.created`            |
+| `payment`      | `payment.completed`          |
+| `payment`      | `payment.failed`             |
+| `payment`      | `payment.refunded`           |
+| `payment`      | `payment.cancelled`          |
+| `subscription` | `subscription.created`       |
+| `subscription` | `subscription.renewed`       |
+| `subscription` | `subscription.cancelled`     |
+| `subscription` | `subscription.past_due`      |
+
+> These event types can be freely extended or replaced to match any external system's domain.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Go 1.25+
+- Docker & Docker Compose
+- PostgreSQL 15+ (or use the provided Docker Compose setup)
+- AWS CLI (for deployment only)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/webhook-delivery-system.git
+cd webhook-delivery-system
+
+# 2. Copy environment variables
+cp .env.example .env
+
+# 3. Start dependencies (Postgres)
+docker compose up -d
+
+# 4. Run database migrations
+go run ./cmd/migrate
+
+# 5. Start the server
+go run ./cmd/server
+```
+
+The server will be available at `http://localhost:8080`.
+
+---
+
+## Environment Variables
+
+| Variable               | Description                              | Required |
+|------------------------|------------------------------------------|----------|
+| `DATABASE_URL`         | PostgreSQL connection string             | ✅       |
+| `SERVER_PORT`          | HTTP server port (default: `8080`)       | ✅       |
+| `WORKER_POOL_SIZE`     | Number of concurrent delivery workers   | ✅       |
+| `HMAC_SECRET`          | Default secret for signing (dev only)    | ✅       |
+| `OTEL_EXPORTER_ENDPOINT` | OpenTelemetry collector endpoint       | ❌       |
+| `LOG_LEVEL`            | Log level: `debug`, `info`, `warn`, `error` | ❌    |
+| `MAX_RETRY_ATTEMPTS`   | Global default for max delivery retries  | ❌       |
+
+---
+
+## Running Tests
+
+```bash
+# Unit tests only
+go test ./...
+
+# Unit + integration tests (requires Docker for testcontainers)
+go test ./... -tags=integration
+
+# With coverage report
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
+
+Integration tests spin up a real PostgreSQL instance via `testcontainers-go` — no manual setup required.
+
+---
+
+## Deployment
+
+The system is deployed on **AWS** using **ECS Fargate** with **RDS PostgreSQL**.
+
+```
+┌─────────────────────────────────────────────┐
+│                    AWS                       │
+│                                             │
+│   ┌──────────┐       ┌──────────────────┐  │
+│   │   ECS    │──────►│   RDS Postgres   │  │
+│   │ Fargate  │       │   (Multi-AZ)     │  │
+│   └──────────┘       └──────────────────┘  │
+│        ▲                                    │
+│   ┌────┴─────┐                             │
+│   │   ALB    │◄──── External Systems       │
+│   └──────────┘                             │
+└─────────────────────────────────────────────┘
+         ▲
+         │  Vercel Frontend (client dashboard)
+```
+
+### Deploy
+
+```bash
+# Build Docker image
+docker build -t webhook-delivery-system .
+
+# Push to ECR
+aws ecr get-login-password | docker login --username AWS --password-stdin <ECR_URI>
+docker tag webhook-delivery-system:latest <ECR_URI>:latest
+docker push <ECR_URI>:latest
+
+# Deploy to ECS (update service)
+aws ecs update-service --cluster webhook-cluster --service webhook-service --force-new-deployment
+```
+
+> The Vercel frontend connects to this service via the ALB public endpoint. Configure `NEXT_PUBLIC_API_URL` in your Vercel project settings.
