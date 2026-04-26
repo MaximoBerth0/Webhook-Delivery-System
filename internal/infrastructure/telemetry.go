@@ -1,4 +1,4 @@
-package telemetry
+package infrastructure
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-func Setup(ctx context.Context, serviceName string) (func(context.Context) error, error) {
+func SetupTelemetry(ctx context.Context, serviceName string) (func(context.Context) error, error) {
 	exporter, err := otlptracehttp.New(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("create otlp exporter: %w", err)

@@ -1,5 +1,11 @@
 package helpers
 
+/*
+
+=== THIS NEEDS TO BE MODIFIED ===
+
+*/
+
 import (
 	"context"
 	"net/http/httptest"
@@ -13,6 +19,7 @@ import (
 	"webhook-delivery-system/internal/attempt"
 	"webhook-delivery-system/internal/delivery"
 	"webhook-delivery-system/internal/event"
+	"webhook-delivery-system/internal/infrastructure"
 	"webhook-delivery-system/internal/storage"
 	pgstore "webhook-delivery-system/internal/storage/postgres"
 	transporthttp "webhook-delivery-system/internal/transport/http"
@@ -65,10 +72,13 @@ func SetupEnv(t *testing.T) *TestEnv {
 	dRepo := pgstore.NewDeliveryRepository(pool)
 	aRepo := pgstore.NewAttemptRepository(pool)
 
+	log := infrastructure.NewLog()
+	idGen := infrastructure.NewUUIDGenerator()
+
 	wSvc := webhook.NewService(wRepo)
 	eSvc := event.NewService(eRepo)
-	dSvc := delivery.NewService(dRepo)
-	aSvc := attempt.NewService(aRepo)
+	dSvc := delivery.NewService(dRepo, idGen, log)
+	aSvc := attempt.NewService(aRepo, idGen, log)
 
 	eventHandler := transporthttp.NewEventHandler(eSvc)
 	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc)

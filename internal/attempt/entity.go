@@ -1,19 +1,15 @@
 package attempt
 
 import (
-	"errors"
 	"time"
 )
-
-var ErrInvalidDeliveryID = errors.New("invalid delivery id")
 
 type Status string
 
 const (
-	StatusPending   Status = "pending"
-	StatusSuccess   Status = "success"
-	StatusFailed    Status = "failed"
-	StatusCancelled Status = "cancelled"
+	StatusPending Status = "pending"
+	StatusSuccess Status = "success"
+	StatusFailed  Status = "failed"
 )
 
 type DeliveryAttempt struct {
@@ -26,13 +22,18 @@ type DeliveryAttempt struct {
 	CreatedAt     time.Time
 }
 
-func NewDeliveryAttempt(deliveryID string) (*DeliveryAttempt, error) {
+func NewDeliveryAttempt(deliveryID string, attemptNumber int) (*DeliveryAttempt, error) {
 	if deliveryID == "" {
 		return nil, ErrInvalidDeliveryID
 	}
+	if attemptNumber <= 0 {
+		return nil, ErrInvalidAttemptNumber
+	}
+
 	return &DeliveryAttempt{
-		DeliveryID: deliveryID,
-		Status:     StatusPending,
-		CreatedAt:  time.Now(),
+		DeliveryID:    deliveryID,
+		Status:        StatusPending,
+		AttemptNumber: attemptNumber,
+		CreatedAt:     time.Now(),
 	}, nil
 }

@@ -1,19 +1,15 @@
 package delivery
 
-import (
-	"errors"
+import "errors"
+
+var (
+	ErrInvalidEventID    = errors.New("delivery: event id is required")
+	ErrInvalidWebhookID  = errors.New("delivery: webhook id is required")
+	ErrInvalidDeliveryID = errors.New("delivery: delivery id is required")
+	ErrCreateDelivery    = errors.New("delivery: error creating delivery")
+	ErrDeliveryNotFound  = errors.New("delivery: delivery not found")
+	ErrGetPending        = errors.New("delivery: error getting pending deliveries")
+	ErrGetRetryable      = errors.New("delivery: error getting retryable deliveries")
+	ErrUpdateStatus      = errors.New("delivery: error updating delivery status")
+	ErrIncrementAttempts = errors.New("delivery: error incrementing delivery attempts")
 )
-
-var ErrInvalidDeliveryID = errors.New("delivery id not found")
-
-var ErrCreateDelivery = errors.New("error creating delivery")
-
-var ErrDeliveryNotFound = errors.New("error delivery not found")
-
-var ErrGetPending = errors.New("error getting pending deliveries")
-
-var ErrGetRetryable = errors.New("error getting retryable deliveries")
-
-var ErrUpdateStatus = errors.New("error updating delivery status")
-
-var ErrIncrementAttempts = errors.New("error incrementing delivery attempts")

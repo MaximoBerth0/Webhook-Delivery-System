@@ -66,7 +66,7 @@ External System                      Subscribed Endpoints
 | Observability  | OpenTelemetry, structured JSON logs |
 | Auth / Security| HMAC-SHA256 signatures              |
 | Deployment     | AWS ECS (Fargate) + RDS             |
-| Frontend       | Next.js on Vercel                   |
+| Frontend       | React on Vercel                     |
 | Testing        | `testing` pkg, `testcontainers-go`  |
 
 ---

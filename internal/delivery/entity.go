@@ -1,11 +1,5 @@
 package delivery
 
-import (
-	"fmt"
-
-	"github.com/google/uuid"
-)
-
 type Status string
 
 const (
@@ -25,14 +19,13 @@ type Delivery struct {
 
 func NewDelivery(eventID, webhookID string) (*Delivery, error) {
 	if eventID == "" {
-		return nil, fmt.Errorf("eventID is required")
+		return nil, ErrInvalidEventID
 	}
 	if webhookID == "" {
-		return nil, fmt.Errorf("webhookID is required")
+		return nil, ErrInvalidWebhookID
 	}
 
 	return &Delivery{
-		ID:        uuid.NewString(),
 		EventID:   eventID,
 		WebhookID: webhookID,
 		Attempts:  0,

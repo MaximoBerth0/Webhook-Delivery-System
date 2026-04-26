@@ -1,11 +1,11 @@
-package logger
+package infrastructure
 
 import (
 	"log/slog"
 	"os"
 )
 
-func New() *slog.Logger {
+func NewLog() *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})

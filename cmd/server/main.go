@@ -2,34 +2,35 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 
 	"webhook-delivery-system/internal/attempt"
 	"webhook-delivery-system/internal/delivery"
 	"webhook-delivery-system/internal/event"
+	"webhook-delivery-system/internal/infrastructure"
 	"webhook-delivery-system/internal/storage"
 	"webhook-delivery-system/internal/storage/postgres"
 	transporthttp "webhook-delivery-system/internal/transport/http"
 	"webhook-delivery-system/internal/webhook"
 )
 
-/*
-implement OpenTelemetry for metrics, logs and tracing
-
-tp := otelSetup() // tracer provider
-defer tp.Shutdown(ctx)
-
-tracer := otel.Tracer("webhook-system")
-*/
-
 func main() {
 	ctx := context.Background()
 
+	log := infrastructure.NewLog()
+
+	shutdown, err := infrastructure.SetupTelemetry(ctx, "webhook-delivery-system")
+	if err != nil {
+		log.Error("telemetry setup failed", "error", err)
+	} else {
+		defer shutdown(ctx)
+	}
+
 	pool, err := storage.NewPool(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatalf("db connect: %v", err)
+		log.Error("db connect", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
@@ -39,11 +40,13 @@ func main() {
 	dRepo := postgres.NewDeliveryRepository(pool)
 	aRepo := postgres.NewAttemptRepository(pool)
 
+	idGen := infrastructure.NewUUIDGenerator()
+
 	// services
 	wSvc := webhook.NewService(wRepo)
 	eSvc := event.NewService(eRepo)
-	dSvc := delivery.NewService(dRepo)
-	aSvc := attempt.NewService(aRepo)
+	dSvc := delivery.NewService(dRepo, idGen, log)
+	aSvc := attempt.NewService(aRepo, idGen, log)
 
 	// handlers
 	eventHandler := transporthttp.NewEventHandler(eSvc)
@@ -58,8 +61,9 @@ func main() {
 		addr = ":8080"
 	}
 
-	log.Printf("listening on %s", addr)
+	log.Info("listening", "addr", addr)
 	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatalf("server: %v", err)
+		log.Error("server", "error", err)
+		os.Exit(1)
 	}
 }
