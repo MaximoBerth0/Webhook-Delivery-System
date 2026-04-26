@@ -75,8 +75,8 @@ func SetupEnv(t *testing.T) *TestEnv {
 	log := infrastructure.NewLog()
 	idGen := infrastructure.NewUUIDGenerator()
 
-	wSvc := webhook.NewService(wRepo)
-	eSvc := event.NewService(eRepo)
+	wSvc := webhook.NewService(wRepo, idGen, log)
+	eSvc := event.NewService(eRepo, idGen, log)
 	dSvc := delivery.NewService(dRepo, idGen, log)
 	aSvc := attempt.NewService(aRepo, idGen, log)
 

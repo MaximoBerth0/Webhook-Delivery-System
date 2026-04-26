@@ -81,12 +81,19 @@ func (r *DeliveryRepository) GetByWebhookID(ctx context.Context, webhookID strin
 }
 
 func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]delivery.Delivery, error) {
+	// locked by a concurrent worker (FOR UPDATE SKIP LOCKED)
 	query := `
-		SELECT id, event_id, webhook_id, attempts, status
-		FROM deliveries
-		WHERE status in ('PENDING')
-		ORDER BY created_at ASC
-		LIMIT $1
+		UPDATE deliveries
+		SET status = 'PROCESSING'
+		WHERE id IN (
+			SELECT id
+			FROM deliveries
+			WHERE status = 'PENDING'
+			ORDER BY created_at ASC
+			LIMIT $1
+			FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, event_id, webhook_id, attempts, status
 	`
 
 	rows, err := r.db.Query(ctx, query, limit)

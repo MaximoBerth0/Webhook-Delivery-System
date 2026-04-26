@@ -1,8 +1,6 @@
 package webhook
 
 import (
-	"errors"
-	"fmt"
 	"net/url"
 	"time"
 	"webhook-delivery-system/internal/event"
@@ -21,23 +19,23 @@ type Webhook struct {
 
 func NewWebhook(targetURL, secret string, maxAttempts int, events []event.SubscribedEvent) (*Webhook, error) {
 	if targetURL == "" {
-		return nil, errors.New("target URL is required")
+		return nil, ErrURLrequired
 	}
 	if _, err := url.ParseRequestURI(targetURL); err != nil {
-		return nil, errors.New("invalid target URL")
+		return nil, ErrInvalidTargetURL
 	}
 	if secret == "" {
-		return nil, errors.New("secret is required")
+		return nil, ErrSecretRequired
 	}
 	if maxAttempts < 1 {
-		return nil, errors.New("max attempts must be >= 1")
+		return nil, ErrInvalidMaxAttempts
 	}
 	if len(events) == 0 {
-		return nil, errors.New("at least one event required")
+		return nil, ErrNumberOfEvents
 	}
 	for _, e := range events {
 		if !event.IsValidEvent(e) {
-			return nil, fmt.Errorf("invalid event type: %s", e)
+			return nil, ErrInvalidEventType
 		}
 	}
 	return &Webhook{

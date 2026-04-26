@@ -1,7 +1,6 @@
 package event
 
 import (
-	"errors"
 	"time"
 )
 
@@ -36,10 +35,10 @@ type Event struct {
 
 func NewEvent(eventType SubscribedEvent, payload []byte) (*Event, error) {
 	if !IsValidEvent(eventType) {
-		return nil, errors.New("invalid event type")
+		return nil, ErrInvalidEventType
 	}
 	if len(payload) == 0 {
-		return nil, errors.New("payload is required")
+		return nil, ErrInvalidPayload
 	}
 	return &Event{
 		Type:      eventType,

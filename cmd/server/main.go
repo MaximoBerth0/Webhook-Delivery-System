@@ -43,8 +43,8 @@ func main() {
 	idGen := infrastructure.NewUUIDGenerator()
 
 	// services
-	wSvc := webhook.NewService(wRepo)
-	eSvc := event.NewService(eRepo)
+	wSvc := webhook.NewService(wRepo, idGen, log)
+	eSvc := event.NewService(eRepo, idGen, log)
 	dSvc := delivery.NewService(dRepo, idGen, log)
 	aSvc := attempt.NewService(aRepo, idGen, log)
 

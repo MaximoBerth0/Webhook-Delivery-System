@@ -3,10 +3,11 @@ package delivery
 type Status string
 
 const (
-	StatusPending Status = "PENDING"
-	StatusSuccess Status = "SUCCESS"
-	StatusFailed  Status = "FAILED"
-	StatusRetry   Status = "RETRY"
+	StatusPending    Status = "PENDING"
+	StatusProcessing Status = "PROCESSING"
+	StatusSuccess    Status = "SUCCESS"
+	StatusFailed     Status = "FAILED"
+	StatusRetry      Status = "RETRY"
 )
 
 type Delivery struct {
