@@ -12,6 +12,7 @@ import (
 	"webhook-delivery-system/internal/storage"
 	"webhook-delivery-system/internal/storage/postgres"
 	transporthttp "webhook-delivery-system/internal/transport/http"
+	"webhook-delivery-system/internal/transport/middleware"
 	"webhook-delivery-system/internal/webhook"
 )
 
@@ -49,12 +50,13 @@ func main() {
 	aSvc := attempt.NewService(aRepo, idGen, log)
 
 	// handlers
-	eventHandler := transporthttp.NewEventHandler(eSvc)
-	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc)
-	webhookHandler := transporthttp.NewWebhookHandler(wSvc)
+	eventHandler := transporthttp.NewEventHandler(eSvc, log)
+	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc, log)
+	webhookHandler := transporthttp.NewWebhookHandler(wSvc, log)
 
 	// router
-	router := transporthttp.NewRouter(deliveryHandler, eventHandler, webhookHandler)
+	idempotencyStore := middleware.NewIdempotencyStore(log)
+	router := transporthttp.NewRouter(deliveryHandler, eventHandler, webhookHandler, idempotencyStore)
 
 	addr := os.Getenv("ADDR")
 	if addr == "" {

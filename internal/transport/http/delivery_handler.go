@@ -2,60 +2,134 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"webhook-delivery-system/internal/attempt"
 	"webhook-delivery-system/internal/delivery"
+	"webhook-delivery-system/internal/webhook"
+
+	"log/slog"
 
 	"github.com/go-chi/chi"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type DeliveryHandler struct {
 	deliveryService *delivery.Service
 	attemptService  *attempt.Service
+	logger          *slog.Logger
+	tracer          trace.Tracer
 }
 
-func NewDeliveryHandler(deliveryService *delivery.Service, attemptService *attempt.Service) *DeliveryHandler {
+func NewDeliveryHandler(deliveryService *delivery.Service, attemptService *attempt.Service, logger *slog.Logger) *DeliveryHandler {
 	return &DeliveryHandler{
 		deliveryService: deliveryService,
 		attemptService:  attemptService,
+		logger:          logger,
+		tracer:          otel.Tracer("http.delivery_handler"),
 	}
 }
 
 func (h *DeliveryHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	ctx, span := h.tracer.Start(r.Context(), "DeliveryHandler.GetByID")
+	defer span.End()
 
-	result, err := h.deliveryService.GetByID(r.Context(), id)
+	id := chi.URLParam(r, "id")
+	span.SetAttributes(attribute.String("delivery.id", id))
+
+	result, err := h.deliveryService.GetByID(ctx, id)
 	if err != nil {
-		http.Error(w, "delivery not found", http.StatusNotFound)
+
+		if errors.Is(err, delivery.ErrDeliveryNotFound) {
+			span.SetStatus(codes.Error, "delivery not found")
+			span.RecordError(err)
+			http.Error(w, "delivery not found", http.StatusNotFound)
+			return
+		}
+
+		span.SetStatus(codes.Error, "internal server error")
+		span.RecordError(err)
+
+		h.logger.Error("failed to get delivery",
+			slog.String("delivery_id", id),
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	span.SetStatus(codes.Ok, "delivery retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
 
 func (h *DeliveryHandler) ListByWebhook(w http.ResponseWriter, r *http.Request) {
-	webhookID := chi.URLParam(r, "id")
+	ctx, span := h.tracer.Start(r.Context(), "DeliveryHandler.ListByWebhook")
+	defer span.End()
 
-	results, err := h.deliveryService.GetByWebhookID(r.Context(), webhookID)
+	webhookID := chi.URLParam(r, "id")
+	span.SetAttributes(attribute.String("webhook.id", webhookID))
+
+	deliveries, err := h.deliveryService.ListByWebhook(ctx, webhookID)
 	if err != nil {
-		http.Error(w, "could not fetch deliveries", http.StatusInternalServerError)
+		if errors.Is(err, webhook.ErrWebhookNotFound) {
+			span.SetStatus(codes.Error, "webhook not found")
+			span.RecordError(err)
+			http.Error(w, "webhook not found", http.StatusNotFound)
+			return
+		}
+
+		span.SetStatus(codes.Error, "internal server error")
+		span.RecordError(err)
+
+		h.logger.Error("failed to list deliveries",
+			slog.String("webhook_id", webhookID),
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	span.SetAttributes(attribute.Int("deliveries.count", len(deliveries)))
+	span.SetStatus(codes.Ok, "deliveries retrieved")
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(deliveries)
 }
 
 func (h *DeliveryHandler) GetAttempts(w http.ResponseWriter, r *http.Request) {
-	deliveryID := chi.URLParam(r, "id")
+	ctx, span := h.tracer.Start(r.Context(), "DeliveryHandler.GetAttempts")
+	defer span.End()
 
-	results, err := h.attemptService.GetAttempts(r.Context(), deliveryID)
+	deliveryID := chi.URLParam(r, "id")
+	span.SetAttributes(attribute.String("delivery_id", deliveryID))
+
+	attempts, err := h.attemptService.GetAttempts(ctx, deliveryID)
 	if err != nil {
-		http.Error(w, "could not fetch attempts", http.StatusInternalServerError)
+		span.SetStatus(codes.Error, "internal server error")
+		span.RecordError(err)
+
+		h.logger.Error("failed to get delivery attempts",
+			slog.String("delivery_id", deliveryID),
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	span.SetAttributes(attribute.Int("attempts.count", len(attempts)))
+	span.SetStatus(codes.Ok, "attempts retrieved")
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(attempts)
 }

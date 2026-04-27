@@ -1,11 +1,5 @@
 package helpers
 
-/*
-
-=== THIS NEEDS TO BE MODIFIED ===
-
-*/
-
 import (
 	"context"
 	"net/http/httptest"
@@ -23,6 +17,7 @@ import (
 	"webhook-delivery-system/internal/storage"
 	pgstore "webhook-delivery-system/internal/storage/postgres"
 	transporthttp "webhook-delivery-system/internal/transport/http"
+	"webhook-delivery-system/internal/transport/middleware"
 	"webhook-delivery-system/internal/webhook"
 )
 
@@ -80,11 +75,12 @@ func SetupEnv(t *testing.T) *TestEnv {
 	dSvc := delivery.NewService(dRepo, idGen, log)
 	aSvc := attempt.NewService(aRepo, idGen, log)
 
-	eventHandler := transporthttp.NewEventHandler(eSvc)
-	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc)
-	webhookHandler := transporthttp.NewWebhookHandler(wSvc)
+	eventHandler := transporthttp.NewEventHandler(eSvc, log)
+	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc, log)
+	webhookHandler := transporthttp.NewWebhookHandler(wSvc, log)
 
-	router := transporthttp.NewRouter(deliveryHandler, eventHandler, webhookHandler)
+	idempotencyStore := middleware.NewIdempotencyStore(log)
+	router := transporthttp.NewRouter(deliveryHandler, eventHandler, webhookHandler, idempotencyStore)
 
 	//real HTTP server on a random port
 	server := httptest.NewServer(router)

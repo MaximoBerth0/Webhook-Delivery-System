@@ -3,6 +3,7 @@ package webhook
 import "errors"
 
 var (
+	ErrWebhookNotFound    = errors.New("webhook: webhook not found")
 	ErrURLrequired        = errors.New("webhook: target URL is required")
 	ErrInvalidTargetURL   = errors.New("webhook: invalid target URL")
 	ErrSecretRequired     = errors.New("webhook: secret is required")
