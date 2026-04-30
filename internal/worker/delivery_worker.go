@@ -3,9 +3,6 @@ package worker
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +12,10 @@ import (
 	"webhook-delivery-system/internal/event"
 	"webhook-delivery-system/internal/webhook"
 )
+
+type Signer interface {
+	Sign(payload []byte) string
+}
 
 const (
 	workerPollInterval = 5 * time.Second
@@ -26,6 +27,7 @@ type DeliveryWorker struct {
 	webhookRepo  webhook.WebhookRepository
 	eventRepo    event.EventRepository
 	attemptSvc   attempt.Service
+	signer       Signer
 	httpClient   *http.Client
 }
 
@@ -34,12 +36,14 @@ func NewDeliveryWorker(
 	webhookRepo webhook.WebhookRepository,
 	eventRepo event.EventRepository,
 	attemptSvc attempt.Service,
+	signer Signer,
 ) *DeliveryWorker {
 	return &DeliveryWorker{
 		deliveryRepo: deliveryRepo,
 		webhookRepo:  webhookRepo,
 		eventRepo:    eventRepo,
 		attemptSvc:   attemptSvc,
+		signer:       signer,
 		httpClient:   &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -65,7 +69,6 @@ func (w *DeliveryWorker) Run(ctx context.Context) {
 		}
 
 		for _, d := range deliveries {
-			d := d
 			if err := w.processDelivery(ctx, &d); err != nil {
 				log.Printf("delivery worker: delivery %s failed: %v", d.ID, err)
 			}
@@ -130,9 +133,7 @@ func (w *DeliveryWorker) dispatch(ctx context.Context, url, secret string, paylo
 	req.Header.Set("Content-Type", "application/json")
 
 	if secret != "" {
-		mac := hmac.New(sha256.New, []byte(secret))
-		mac.Write(payload)
-		req.Header.Set("X-Webhook-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+		req.Header.Set("X-Webhook-Signature", w.signer.Sign(payload))
 	}
 
 	resp, err := w.httpClient.Do(req)
