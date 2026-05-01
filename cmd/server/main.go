@@ -36,10 +36,10 @@ func main() {
 	defer pool.Close()
 
 	// repositories
-	wRepo := postgres.NewWebhookRepository(pool)
-	eRepo := postgres.NewEventRepository(pool)
-	dRepo := postgres.NewDeliveryRepository(pool)
-	aRepo := postgres.NewAttemptRepository(pool)
+	wRepo := postgres.NewWebhookRepository(pool, log)
+	eRepo := postgres.NewEventRepository(pool, log)
+	dRepo := postgres.NewDeliveryRepository(pool, log)
+	aRepo := postgres.NewAttemptRepository(pool, log)
 
 	idGen := infrastructure.NewUUIDGenerator()
 

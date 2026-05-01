@@ -62,12 +62,12 @@ func SetupEnv(t *testing.T) *TestEnv {
 	//run migrations against the test DB
 	runMigrations(t, connStr)
 
-	wRepo := pgstore.NewWebhookRepository(pool)
-	eRepo := pgstore.NewEventRepository(pool)
-	dRepo := pgstore.NewDeliveryRepository(pool)
-	aRepo := pgstore.NewAttemptRepository(pool)
-
 	log := infrastructure.NewLog()
+
+	wRepo := pgstore.NewWebhookRepository(pool, log)
+	eRepo := pgstore.NewEventRepository(pool, log)
+	dRepo := pgstore.NewDeliveryRepository(pool, log)
+	aRepo := pgstore.NewAttemptRepository(pool, log)
 	idGen := infrastructure.NewUUIDGenerator()
 
 	wSvc := webhook.NewService(wRepo, idGen, log)

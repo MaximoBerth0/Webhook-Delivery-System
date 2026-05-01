@@ -67,7 +67,7 @@ func (r *AttemptRepository) Create(ctx context.Context, a *attempt.DeliveryAttem
 	return nil
 }
 
-func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID string) ([]*attempt.DeliveryAttempt, error) {
+func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID string) ([]attempt.DeliveryAttempt, error) {
 	ctx, span := r.tracer.Start(ctx, "AttemptRepository.GetByDeliveryID")
 	defer span.End()
 
@@ -92,7 +92,7 @@ func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID stri
 	}
 	defer rows.Close()
 
-	var attempts []*attempt.DeliveryAttempt
+	var attempts []attempt.DeliveryAttempt
 	for rows.Next() {
 		var a attempt.DeliveryAttempt
 		err := rows.Scan(&a.ID, &a.DeliveryID, &a.AttemptNumber,
@@ -106,7 +106,7 @@ func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID stri
 			)
 			return nil, err
 		}
-		attempts = append(attempts, &a)
+		attempts = append(attempts, a)
 	}
 
 	if err := rows.Err(); err != nil {
