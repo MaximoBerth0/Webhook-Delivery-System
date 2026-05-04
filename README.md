@@ -289,10 +289,6 @@ go test ./...
 # Unit + integration tests (requires Docker for testcontainers)
 go test ./... -tags=integration
 
-# With coverage report
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out
-```
 
 Integration tests spin up a real PostgreSQL instance via `testcontainers-go` — no manual setup required.
 
@@ -302,7 +298,7 @@ Integration tests spin up a real PostgreSQL instance via `testcontainers-go` —
 
 The system is deployed on **AWS** using **ECS Fargate** with **RDS PostgreSQL**.
 
-```
+
 ┌─────────────────────────────────────────────┐
 │                    AWS                       │
 │                                             │
