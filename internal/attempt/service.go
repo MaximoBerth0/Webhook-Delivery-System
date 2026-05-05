@@ -11,7 +11,7 @@ type Service struct {
 	repo    DeliveryAttemptRepository
 	idGen   infrastructure.Generator
 	logger  *slog.Logger
-	backoff *BackoffStrategy // ← AGREGAR
+	backoff *BackoffStrategy
 }
 
 func NewService(repo DeliveryAttemptRepository, idGen infrastructure.Generator, logger *slog.Logger) *Service {
@@ -19,43 +19,53 @@ func NewService(repo DeliveryAttemptRepository, idGen infrastructure.Generator, 
 		repo:    repo,
 		idGen:   idGen,
 		logger:  logger,
-		backoff: NewDefaultBackoffStrategy(), // ← AGREGAR
+		backoff: NewDefaultBackoffStrategy(),
 	}
 }
 
-func (s *Service) CreateAttempt(ctx context.Context, deliveryID string) error {
-	s.logger.Info("creating delivery attempt",
-		slog.String("delivery_id", deliveryID),
-	)
-
+// private method
+func (s *Service) createAttempt(ctx context.Context, deliveryID string, scheduledFor time.Time) (*DeliveryAttempt, error) {
 	existing, err := s.repo.GetByDeliveryID(ctx, deliveryID)
 	if err != nil {
 		s.logger.Error("failed to fetch existing attempts",
 			slog.String("delivery_id", deliveryID),
 			slog.String("error", err.Error()),
 		)
-		return err
+		return nil, err
 	}
 
 	attemptNumber := len(existing) + 1
-
-	attempt, err := NewDeliveryAttempt(deliveryID, attemptNumber, time.Now())
+	attempt, err := NewDeliveryAttempt(deliveryID, attemptNumber, scheduledFor)
 	if err != nil {
 		s.logger.Error("failed to create attempt entity",
 			slog.String("delivery_id", deliveryID),
 			slog.String("error", err.Error()),
 		)
-		return err
+		return nil, err
 	}
 
 	attempt.ID = s.idGen.Generate()
 
-	if err := s.repo.Create(ctx, attempt); err != nil {
+	if err := s.repo.CreateAttempt(ctx, attempt); err != nil {
 		s.logger.Error("failed to persist attempt",
 			slog.String("delivery_id", deliveryID),
 			slog.String("error", err.Error()),
 		)
-		return err
+		return nil, err
+	}
+
+	return attempt, nil
+}
+
+// public method
+func (s *Service) CreateAttempt(ctx context.Context, deliveryID string) (*DeliveryAttempt, error) {
+	s.logger.Info("creating delivery attempt",
+		slog.String("delivery_id", deliveryID),
+	)
+
+	attempt, err := s.createAttempt(ctx, deliveryID, time.Now())
+	if err != nil {
+		return nil, err
 	}
 
 	s.logger.Info("delivery attempt created successfully",
@@ -63,7 +73,7 @@ func (s *Service) CreateAttempt(ctx context.Context, deliveryID string) error {
 		slog.String("attempt_id", attempt.ID),
 	)
 
-	return nil
+	return attempt, nil
 }
 
 func (s *Service) CreateScheduledAttempt(ctx context.Context, deliveryID string, scheduledFor time.Time) error {
@@ -72,33 +82,8 @@ func (s *Service) CreateScheduledAttempt(ctx context.Context, deliveryID string,
 		slog.Time("scheduled_for", scheduledFor),
 	)
 
-	existing, err := s.repo.GetByDeliveryID(ctx, deliveryID)
+	attempt, err := s.createAttempt(ctx, deliveryID, scheduledFor)
 	if err != nil {
-		s.logger.Error("failed to fetch existing attempts",
-			slog.String("delivery_id", deliveryID),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	attemptNumber := len(existing) + 1
-
-	attempt, err := NewDeliveryAttempt(deliveryID, attemptNumber, scheduledFor)
-	if err != nil {
-		s.logger.Error("failed to create attempt entity",
-			slog.String("delivery_id", deliveryID),
-			slog.String("error", err.Error()),
-		)
-		return err
-	}
-
-	attempt.ID = s.idGen.Generate()
-
-	if err := s.repo.Create(ctx, attempt); err != nil {
-		s.logger.Error("failed to persist attempt",
-			slog.String("delivery_id", deliveryID),
-			slog.String("error", err.Error()),
-		)
 		return err
 	}
 
@@ -135,4 +120,12 @@ func (s *Service) GetAttempts(ctx context.Context, deliveryID string) ([]Deliver
 
 func (s *Service) GetReadyAttempts(ctx context.Context) ([]*DeliveryAttempt, error) {
 	return s.repo.GetReadyAttempts(ctx, time.Now())
+}
+
+func (s *Service) UpdateAttemptStatus(ctx context.Context, attempt *DeliveryAttempt) error {
+	return s.repo.UpdateStatus(ctx, attempt)
+}
+
+func (s *Service) CalculateNextAttemptTime(attemptNumber int, failedAt time.Time) time.Time {
+	return s.backoff.CalculateNextAttemptTime(attemptNumber, failedAt)
 }

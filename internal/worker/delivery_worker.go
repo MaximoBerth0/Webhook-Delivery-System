@@ -24,9 +24,18 @@ type Signer interface {
 
 type deliveryService interface {
 	GetPending(ctx context.Context, limit int) ([]delivery.Delivery, error)
+	GetByID(ctx context.Context, id string) (*delivery.Delivery, error)
 	MarkSuccess(ctx context.Context, id string) (*delivery.Delivery, error)
 	MarkFailed(ctx context.Context, id string) (*delivery.Delivery, error)
-	IncrementAttempts(ctx context.Context, id string) (*delivery.Delivery, error)
+}
+
+type attemptService interface {
+	CreateAttempt(ctx context.Context, deliveryID string) (*attempt.DeliveryAttempt, error)
+	CreateScheduledAttempt(ctx context.Context, deliveryID string, scheduledFor time.Time) error
+	GetReadyAttempts(ctx context.Context) ([]*attempt.DeliveryAttempt, error)
+	GetAttempts(ctx context.Context, deliveryID string) ([]attempt.DeliveryAttempt, error)
+	UpdateAttemptStatus(ctx context.Context, attempt *attempt.DeliveryAttempt) error
+	CalculateNextAttemptTime(attemptNumber int, failedAt time.Time) time.Time
 }
 
 const (
@@ -38,7 +47,7 @@ type DeliveryWorker struct {
 	deliverySvc deliveryService
 	webhookRepo webhook.WebhookRepository
 	eventRepo   event.EventRepository
-	attemptSvc  *attempt.Service
+	attemptSvc  attemptService
 	signer      Signer
 	httpClient  *http.Client
 	logger      *slog.Logger
@@ -49,7 +58,7 @@ func NewDeliveryWorker(
 	deliverySvc deliveryService,
 	webhookRepo webhook.WebhookRepository,
 	eventRepo event.EventRepository,
-	attemptSvc *attempt.Service,
+	attemptSvc attemptService,
 	signer Signer,
 	logger *slog.Logger,
 ) *DeliveryWorker {
@@ -73,6 +82,10 @@ func (w *DeliveryWorker) Run(ctx context.Context) {
 		default:
 		}
 
+		if err := w.ProcessScheduledAttempts(ctx); err != nil {
+			w.logger.ErrorContext(ctx, "error processing scheduled attempts", "error", err)
+		}
+
 		deliveries, err := w.deliverySvc.GetPending(ctx, workerBatchSize)
 		if err != nil {
 			w.logger.ErrorContext(ctx, "error fetching pending deliveries", "error", err)
@@ -86,15 +99,34 @@ func (w *DeliveryWorker) Run(ctx context.Context) {
 		}
 
 		for _, d := range deliveries {
-			if err := w.processDelivery(ctx, &d); err != nil {
-				w.logger.ErrorContext(ctx, "delivery failed", "delivery_id", d.ID, "error", err)
+			if err := w.ProcessFirstAttempt(ctx, &d); err != nil {
+				w.logger.ErrorContext(ctx, "first attempt failed", "delivery_id", d.ID, "error", err)
 			}
 		}
 	}
 }
 
-func (w *DeliveryWorker) processDelivery(ctx context.Context, d *delivery.Delivery) error {
-	ctx, span := w.tracer.Start(ctx, "DeliveryWorker.processDelivery")
+func (w *DeliveryWorker) ProcessScheduledAttempts(ctx context.Context) error {
+	attempts, err := w.attemptSvc.GetReadyAttempts(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, att := range attempts {
+		if err := w.processAttempt(ctx, att); err != nil {
+			w.logger.ErrorContext(ctx, "scheduled attempt failed",
+				"attempt_id", att.ID,
+				"delivery_id", att.DeliveryID,
+				"error", err,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (w *DeliveryWorker) ProcessFirstAttempt(ctx context.Context, d *delivery.Delivery) error {
+	ctx, span := w.tracer.Start(ctx, "DeliveryWorker.processFirstAttempt")
 	defer span.End()
 
 	span.SetAttributes(
@@ -103,83 +135,102 @@ func (w *DeliveryWorker) processDelivery(ctx context.Context, d *delivery.Delive
 		attribute.String("event_id", d.EventID),
 	)
 
-	wh, err := w.webhookRepo.GetByID(ctx, d.WebhookID)
+	currentAttempt, err := w.attemptSvc.CreateAttempt(ctx, d.ID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to get webhook")
-		w.logger.ErrorContext(ctx, "failed to get webhook", "webhook_id", d.WebhookID, "error", err)
 		return err
 	}
 
-	ev, err := w.eventRepo.GetByID(ctx, d.EventID)
+	return w.processAttempt(ctx, currentAttempt)
+}
+
+func (w *DeliveryWorker) processAttempt(ctx context.Context, att *attempt.DeliveryAttempt) error {
+	ctx, span := w.tracer.Start(ctx, "DeliveryWorker.processAttempt")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("attempt_id", att.ID),
+		attribute.String("delivery_id", att.DeliveryID),
+		attribute.Int("attempt_number", att.AttemptNumber),
+	)
+
+	del, err := w.deliverySvc.GetByID(ctx, att.DeliveryID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to get event")
-		w.logger.ErrorContext(ctx, "failed to get event", "event_id", d.EventID, "error", err)
+		w.logger.ErrorContext(ctx, "failed to get delivery",
+			"delivery_id", att.DeliveryID,
+			"error", err,
+		)
+		return err
+	}
+
+	wh, err := w.webhookRepo.GetByID(ctx, del.WebhookID)
+	if err != nil {
+		w.logger.ErrorContext(ctx, "failed to get webhook",
+			"webhook_id", del.WebhookID,
+			"error", err,
+		)
+		return err
+	}
+
+	ev, err := w.eventRepo.GetByID(ctx, del.EventID)
+	if err != nil {
+		w.logger.ErrorContext(ctx, "failed to get event",
+			"event_id", del.EventID,
+			"error", err,
+		)
 		return err
 	}
 
 	maxAttempts := wh.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = 1
+		maxAttempts = 5
 	}
 
-	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
-		if err := w.attemptSvc.CreateAttempt(ctx, d.ID); err != nil {
-			w.logger.ErrorContext(ctx, "failed to record attempt",
-				"delivery_id", d.ID,
-				"attempt", i+1,
-				"error", err,
-			)
-		}
-		if _, err := w.deliverySvc.IncrementAttempts(ctx, d.ID); err != nil {
-			w.logger.ErrorContext(ctx, "failed to increment attempts",
-				"delivery_id", d.ID,
-				"attempt", i+1,
-				"error", err,
-			)
+	statusCode, err := w.dispatch(ctx, wh.TargetURL, wh.Secret, ev.Payload)
+
+	if err == nil && statusCode >= 200 && statusCode < 300 {
+		if err := att.MarkAsSuccess(statusCode); err != nil {
+			return err
 		}
 
-		statusCode, err := w.dispatch(ctx, wh.TargetURL, wh.Secret, ev.Payload)
-		if err != nil {
-			lastErr = err
-			w.logger.ErrorContext(ctx, "dispatch failed",
-				"delivery_id", d.ID,
-				"attempt", i+1,
-				"error", err,
-			)
-			continue
+		if err := w.attemptSvc.UpdateAttemptStatus(ctx, att); err != nil {
+			return err
 		}
 
-		if statusCode >= 200 && statusCode < 300 {
-			if _, err := w.deliverySvc.MarkSuccess(ctx, d.ID); err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to mark delivery success")
-				w.logger.ErrorContext(ctx, "failed to mark delivery success", "delivery_id", d.ID, "error", err)
-				return err
-			}
-			span.SetStatus(codes.Ok, "delivery successful")
-			return nil
+		if _, err := w.deliverySvc.MarkSuccess(ctx, att.DeliveryID); err != nil {
+			return err
 		}
 
-		lastErr = errors.New("non-2xx response")
-		w.logger.ErrorContext(ctx, "non-2xx response",
-			"delivery_id", d.ID,
-			"attempt", i+1,
-			"status_code", statusCode,
-		)
+		return nil
 	}
 
-	if _, err := w.deliverySvc.MarkFailed(ctx, d.ID); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to mark delivery failed")
-		w.logger.ErrorContext(ctx, "failed to mark delivery failed", "delivery_id", d.ID, "error", err)
+	errorMsg := ""
+	if err != nil {
+		errorMsg = err.Error()
+	} else {
+		errorMsg = "non-2xx response"
+	}
+
+	if err := att.MarkAsFailed(statusCode, errorMsg); err != nil {
 		return err
 	}
 
-	span.SetStatus(codes.Error, "delivery exhausted all attempts")
-	return lastErr
+	if err := w.attemptSvc.UpdateAttemptStatus(ctx, att); err != nil {
+		return err
+	}
+
+	if att.AttemptNumber < maxAttempts {
+		nextScheduledTime := w.attemptSvc.CalculateNextAttemptTime(
+			att.AttemptNumber,
+			time.Now(),
+		)
+		return w.attemptSvc.CreateScheduledAttempt(ctx, att.DeliveryID, nextScheduledTime)
+	}
+
+	if _, err := w.deliverySvc.MarkFailed(ctx, att.DeliveryID); err != nil {
+		return err
+	}
+
+	return errors.New("max attempts reached")
 }
 
 func (w *DeliveryWorker) dispatch(ctx context.Context, url, secret string, payload []byte) (int, error) {

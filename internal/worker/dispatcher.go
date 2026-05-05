@@ -59,6 +59,10 @@ func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 			log.Printf("worker %d shutting down", workerID)
 			return
 		default:
+			if err := d.deliveryWorker.ProcessScheduledAttempts(ctx); err != nil {
+				log.Printf("worker %d: error processing scheduled attempts: %v", workerID, err)
+			}
+
 			deliveries, err := d.deliverySvc.GetPending(ctx, d.batchSize)
 			if err != nil {
 				log.Printf("worker %d: error fetching pending: %v", workerID, err)
@@ -75,7 +79,9 @@ func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 
 			for _, del := range deliveries {
 				del := del
-				d.deliveryWorker.processDelivery(ctx, &del)
+				if err := d.deliveryWorker.ProcessFirstAttempt(ctx, &del); err != nil {
+					log.Printf("worker %d: delivery %s failed: %v", workerID, del.ID, err)
+				}
 			}
 		}
 	}

@@ -6,8 +6,10 @@ import (
 )
 
 type DeliveryAttemptRepository interface {
-	Create(ctx context.Context, a *DeliveryAttempt) error
+	CreateAttempt(ctx context.Context, a *DeliveryAttempt) error
 	GetByDeliveryID(ctx context.Context, deliveryID string) ([]DeliveryAttempt, error)
 
 	GetReadyAttempts(ctx context.Context, before time.Time) ([]*DeliveryAttempt, error)
+
+	UpdateStatus(ctx context.Context, attempt *DeliveryAttempt) error
 }

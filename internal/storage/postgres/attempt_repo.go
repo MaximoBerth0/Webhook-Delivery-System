@@ -37,10 +37,10 @@ func (r *AttemptRepository) CreateAttempt(ctx context.Context, a *attempt.Delive
 
 	query := `
         INSERT INTO delivery_attempts (
-            delivery_id, attempt_number, status, 
+            delivery_id, attempt_number, status, scheduled_for
             response_code, error_message, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
     `
 
@@ -48,6 +48,7 @@ func (r *AttemptRepository) CreateAttempt(ctx context.Context, a *attempt.Delive
 		a.DeliveryID,
 		a.AttemptNumber,
 		a.Status,
+		a.ScheduledFor,
 		a.ResponseCode,
 		a.ErrorMessage,
 		a.CreatedAt,
