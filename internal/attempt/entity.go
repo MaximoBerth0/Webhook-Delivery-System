@@ -17,12 +17,13 @@ type DeliveryAttempt struct {
 	DeliveryID    string
 	AttemptNumber int
 	Status        Status
+	ScheduledFor  time.Time
 	ResponseCode  int
 	ErrorMessage  string
 	CreatedAt     time.Time
 }
 
-func NewDeliveryAttempt(deliveryID string, attemptNumber int) (*DeliveryAttempt, error) {
+func NewDeliveryAttempt(deliveryID string, attemptNumber int, scheduledFor time.Time) (*DeliveryAttempt, error) {
 	if deliveryID == "" {
 		return nil, ErrInvalidDeliveryID
 	}
@@ -34,6 +35,7 @@ func NewDeliveryAttempt(deliveryID string, attemptNumber int) (*DeliveryAttempt,
 		DeliveryID:    deliveryID,
 		Status:        StatusPending,
 		AttemptNumber: attemptNumber,
+		ScheduledFor:  scheduledFor,
 		CreatedAt:     time.Now(),
 	}, nil
 }

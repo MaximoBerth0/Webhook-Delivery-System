@@ -26,7 +26,7 @@ func NewAttemptRepository(db storage.DBTX, logger *slog.Logger) *AttemptReposito
 	}
 }
 
-func (r *AttemptRepository) Create(ctx context.Context, a *attempt.DeliveryAttempt) error {
+func (r *AttemptRepository) CreateAttempt(ctx context.Context, a *attempt.DeliveryAttempt) error {
 	ctx, span := r.tracer.Start(ctx, "AttemptRepository.Create")
 	defer span.End()
 
