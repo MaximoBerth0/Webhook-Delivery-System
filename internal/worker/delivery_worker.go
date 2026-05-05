@@ -17,34 +17,41 @@ type Signer interface {
 	Sign(payload []byte) string
 }
 
+type deliveryService interface {
+	GetPending(ctx context.Context, limit int) ([]delivery.Delivery, error)
+	MarkSuccess(ctx context.Context, id string) (*delivery.Delivery, error)
+	MarkFailed(ctx context.Context, id string) (*delivery.Delivery, error)
+	IncrementAttempts(ctx context.Context, id string) (*delivery.Delivery, error)
+}
+
 const (
 	workerPollInterval = 5 * time.Second
 	workerBatchSize    = 10
 )
 
 type DeliveryWorker struct {
-	deliveryRepo delivery.DeliveryRepository
-	webhookRepo  webhook.WebhookRepository
-	eventRepo    event.EventRepository
-	attemptSvc   attempt.Service
-	signer       Signer
-	httpClient   *http.Client
+	deliverySvc deliveryService
+	webhookRepo webhook.WebhookRepository
+	eventRepo   event.EventRepository
+	attemptSvc  *attempt.Service
+	signer      Signer
+	httpClient  *http.Client
 }
 
 func NewDeliveryWorker(
-	deliveryRepo delivery.DeliveryRepository,
+	deliverySvc deliveryService,
 	webhookRepo webhook.WebhookRepository,
 	eventRepo event.EventRepository,
-	attemptSvc attempt.Service,
+	attemptSvc *attempt.Service,
 	signer Signer,
 ) *DeliveryWorker {
 	return &DeliveryWorker{
-		deliveryRepo: deliveryRepo,
-		webhookRepo:  webhookRepo,
-		eventRepo:    eventRepo,
-		attemptSvc:   attemptSvc,
-		signer:       signer,
-		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		deliverySvc: deliverySvc,
+		webhookRepo: webhookRepo,
+		eventRepo:   eventRepo,
+		attemptSvc:  attemptSvc,
+		signer:      signer,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -56,7 +63,7 @@ func (w *DeliveryWorker) Run(ctx context.Context) {
 		default:
 		}
 
-		deliveries, err := w.deliveryRepo.GetPending(ctx, workerBatchSize)
+		deliveries, err := w.deliverySvc.GetPending(ctx, workerBatchSize)
 		if err != nil {
 			log.Printf("delivery worker: error fetching pending: %v", err)
 			w.sleep(ctx)
@@ -97,7 +104,7 @@ func (w *DeliveryWorker) processDelivery(ctx context.Context, d *delivery.Delive
 		if err := w.attemptSvc.CreateAttempt(ctx, d.ID); err != nil {
 			log.Printf("processDelivery: record attempt for %s: %v", d.ID, err)
 		}
-		if _, err := w.deliveryRepo.IncrementAttempts(ctx, d.ID); err != nil {
+		if _, err := w.deliverySvc.IncrementAttempts(ctx, d.ID); err != nil {
 			log.Printf("processDelivery: increment attempts for %s: %v", d.ID, err)
 		}
 
@@ -109,7 +116,7 @@ func (w *DeliveryWorker) processDelivery(ctx context.Context, d *delivery.Delive
 		}
 
 		if statusCode >= 200 && statusCode < 300 {
-			if _, err := w.deliveryRepo.UpdateStatus(ctx, d.ID, delivery.StatusSuccess); err != nil {
+			if _, err := w.deliverySvc.MarkSuccess(ctx, d.ID); err != nil {
 				return fmt.Errorf("mark delivery %s success: %w", d.ID, err)
 			}
 			return nil
@@ -119,7 +126,7 @@ func (w *DeliveryWorker) processDelivery(ctx context.Context, d *delivery.Delive
 		log.Printf("processDelivery: attempt %d for %s got status %d", i+1, d.ID, statusCode)
 	}
 
-	if _, err := w.deliveryRepo.UpdateStatus(ctx, d.ID, delivery.StatusFailed); err != nil {
+	if _, err := w.deliverySvc.MarkFailed(ctx, d.ID); err != nil {
 		return fmt.Errorf("mark delivery %s failed: %w", d.ID, err)
 	}
 	return lastErr

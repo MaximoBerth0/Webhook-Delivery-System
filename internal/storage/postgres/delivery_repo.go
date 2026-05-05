@@ -226,8 +226,7 @@ func (r *DeliveryRepository) GetRetryable(ctx context.Context, limit int) ([]del
 	query := `
 	    SELECT id, event_id, webhook_id, attempts, status
 		FROM deliveries
-		WHERE status IN ('PENDING', 'RETRY')
-        AND attempts < $2
+		WHERE status = 'RETRY'
 		ORDER BY created_at ASC
 		LIMIT $1
 	`

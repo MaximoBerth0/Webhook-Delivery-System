@@ -5,16 +5,10 @@ import (
 	"log"
 	"sync"
 	"time"
-	"webhook-delivery-system/internal/delivery"
 )
 
-/*
-1. ensure SELECT ... FOR UPDATE SKIP LOCKED in the GetPending query
-2. remove hardcoded variables
-*/
-
 type Dispatcher struct {
-	deliveryRepo   delivery.DeliveryRepository
+	deliverySvc    deliveryService
 	deliveryWorker *DeliveryWorker
 	concurrency    int
 	pollInterval   time.Duration
@@ -24,14 +18,14 @@ type Dispatcher struct {
 }
 
 func NewDispatcher(
-	repo delivery.DeliveryRepository,
+	svc deliveryService,
 	worker *DeliveryWorker,
 	concurrency int,
 	pollInterval time.Duration,
 	batchSize int,
 ) *Dispatcher {
 	return &Dispatcher{
-		deliveryRepo:   repo,
+		deliverySvc:    svc,
 		deliveryWorker: worker,
 		concurrency:    concurrency,
 		pollInterval:   pollInterval,
@@ -65,7 +59,7 @@ func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 			log.Printf("worker %d shutting down", workerID)
 			return
 		default:
-			deliveries, err := d.deliveryRepo.GetPending(ctx, d.batchSize)
+			deliveries, err := d.deliverySvc.GetPending(ctx, d.batchSize)
 			if err != nil {
 				log.Printf("worker %d: error fetching pending: %v", workerID, err)
 				d.sleep(ctx)

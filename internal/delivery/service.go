@@ -73,18 +73,49 @@ func (s *Service) GetRetryable(ctx context.Context, limit int) ([]Delivery, erro
 	return deliveries, nil
 }
 
-func (s *Service) UpdateStatus(ctx context.Context, id string, status Status) (*Delivery, error) {
+func (s *Service) MarkSuccess(ctx context.Context, id string) (*Delivery, error) {
 	if id == "" {
 		return nil, ErrInvalidDeliveryID
 	}
-	d, err := s.repo.UpdateStatus(ctx, id, status)
+	d := &Delivery{ID: id}
+	d.MarkSuccess()
+	updated, err := s.repo.UpdateStatus(ctx, id, d.Status)
 	if err != nil {
-		s.logger.Error("failed to update delivery status", slog.String("delivery_id", id), slog.String("status", string(status)), slog.String("error", err.Error()))
+		s.logger.Error("failed to mark delivery success", slog.String("delivery_id", id), slog.String("error", err.Error()))
 		return nil, ErrUpdateStatus
 	}
+	s.logger.Info("delivery marked success", slog.String("delivery_id", id))
+	return updated, nil
+}
 
-	s.logger.Info("delivery status updated", slog.String("delivery_id", id), slog.String("status", string(status)))
-	return d, nil
+func (s *Service) MarkRetry(ctx context.Context, id string) (*Delivery, error) {
+	if id == "" {
+		return nil, ErrInvalidDeliveryID
+	}
+	d := &Delivery{ID: id}
+	d.MarkRetry()
+	updated, err := s.repo.UpdateStatus(ctx, id, d.Status)
+	if err != nil {
+		s.logger.Error("failed to mark delivery retry", slog.String("delivery_id", id), slog.String("error", err.Error()))
+		return nil, ErrUpdateStatus
+	}
+	s.logger.Info("delivery marked retry", slog.String("delivery_id", id))
+	return updated, nil
+}
+
+func (s *Service) MarkFailed(ctx context.Context, id string) (*Delivery, error) {
+	if id == "" {
+		return nil, ErrInvalidDeliveryID
+	}
+	d := &Delivery{ID: id}
+	d.MarkFailed()
+	updated, err := s.repo.UpdateStatus(ctx, id, d.Status)
+	if err != nil {
+		s.logger.Error("failed to mark delivery failed", slog.String("delivery_id", id), slog.String("error", err.Error()))
+		return nil, ErrUpdateStatus
+	}
+	s.logger.Info("delivery marked failed", slog.String("delivery_id", id))
+	return updated, nil
 }
 
 func (s *Service) IncrementAttempts(ctx context.Context, id string) (*Delivery, error) {
