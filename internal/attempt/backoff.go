@@ -28,12 +28,12 @@ func (b *BackoffStrategy) CalculateDelay(attemptNumber int) time.Duration {
 	// attemptNumber 3 -> 2^1 = 2s
 	// attemptNumber 4 -> 2^2 = 4s
 	exponent := float64(attemptNumber - 2)
-	delay := time.Duration(float64(b.BaseDelay) * math.Pow(b.Multiplier, exponent))
+	delayF := float64(b.BaseDelay) * math.Pow(b.Multiplier, exponent)
 
-	if delay > b.MaxDelay {
+	if delayF >= float64(b.MaxDelay) {
 		return b.MaxDelay
 	}
-	return delay
+	return time.Duration(delayF)
 }
 
 func (b *BackoffStrategy) CalculateNextAttemptTime(attemptNumber int, failedAt time.Time) time.Time {
