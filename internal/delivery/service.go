@@ -49,7 +49,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Delivery, error) {
 	return d, nil
 }
 
-func (s *Service) ListByWebhook(ctx context.Context, webhookID string) ([]Delivery, error) {
+func (s *Service) GetByWebhookID(ctx context.Context, webhookID string) ([]Delivery, error) {
 	return s.repo.GetByWebhookID(ctx, webhookID)
 }
 

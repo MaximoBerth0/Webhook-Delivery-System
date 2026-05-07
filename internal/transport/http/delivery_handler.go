@@ -76,7 +76,7 @@ func (h *DeliveryHandler) ListByWebhook(w http.ResponseWriter, r *http.Request) 
 	webhookID := chi.URLParam(r, "id")
 	span.SetAttributes(attribute.String("webhook.id", webhookID))
 
-	deliveries, err := h.deliveryService.ListByWebhook(ctx, webhookID)
+	deliveries, err := h.deliveryService.GetByWebhookID(ctx, webhookID)
 	if err != nil {
 		if errors.Is(err, webhook.ErrWebhookNotFound) {
 			span.SetStatus(codes.Error, "webhook not found")

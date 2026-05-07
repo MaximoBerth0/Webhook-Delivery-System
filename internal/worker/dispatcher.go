@@ -94,3 +94,25 @@ func (d *Dispatcher) sleep(ctx context.Context) {
 	case <-time.After(d.pollInterval):
 	}
 }
+
+func (d *Dispatcher) ProcessOnce(ctx context.Context) error {
+	// process any scheduled retries that are ready
+	if err := d.deliveryWorker.ProcessScheduledAttempts(ctx); err != nil {
+		return err
+	}
+
+	deliveries, err := d.deliverySvc.GetPending(ctx, d.batchSize)
+	if err != nil {
+		return err
+	}
+
+	// process each delivery once
+	for _, del := range deliveries {
+		del := del // capture loop variable
+		if err := d.deliveryWorker.ProcessFirstAttempt(ctx, &del); err != nil {
+			log.Printf("delivery %s failed: %v", del.ID, err)
+		}
+	}
+
+	return nil
+}

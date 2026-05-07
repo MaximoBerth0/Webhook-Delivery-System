@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
@@ -19,6 +20,7 @@ import (
 	transporthttp "webhook-delivery-system/internal/transport/http"
 	"webhook-delivery-system/internal/transport/middleware"
 	"webhook-delivery-system/internal/webhook"
+	"webhook-delivery-system/internal/worker"
 )
 
 type TestEnv struct {
@@ -27,6 +29,7 @@ type TestEnv struct {
 	DeliverySvc *delivery.Service
 	WebhookSvc  *webhook.Service
 	EventSvc    *event.Service
+	Worker      *worker.Dispatcher
 }
 
 func SetupEnv(t *testing.T) *TestEnv {
@@ -75,6 +78,10 @@ func SetupEnv(t *testing.T) *TestEnv {
 	dSvc := delivery.NewService(dRepo, idGen, log)
 	aSvc := attempt.NewService(aRepo, idGen, log)
 
+	signer := infrastructure.NewHMACSigner("")
+	deliveryWorker := worker.NewDeliveryWorker(dSvc, wRepo, eRepo, aSvc, signer, log)
+	dispatcher := worker.NewDispatcher(dSvc, deliveryWorker, 1, 100*time.Millisecond, 10)
+
 	eventHandler := transporthttp.NewEventHandler(eSvc, log)
 	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc, log)
 	webhookHandler := transporthttp.NewWebhookHandler(wSvc, log)
@@ -92,5 +99,6 @@ func SetupEnv(t *testing.T) *TestEnv {
 		DeliverySvc: dSvc,
 		WebhookSvc:  wSvc,
 		EventSvc:    eSvc,
+		Worker:      dispatcher,
 	}
 }
