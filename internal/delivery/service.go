@@ -63,16 +63,6 @@ func (s *Service) GetPending(ctx context.Context, limit int) ([]Delivery, error)
 	return deliveries, nil
 }
 
-func (s *Service) GetRetryable(ctx context.Context, limit int) ([]Delivery, error) {
-	deliveries, err := s.repo.GetRetryable(ctx, limit)
-	if err != nil {
-		s.logger.Error("failed to get retryable deliveries", slog.String("error", err.Error()))
-		return nil, ErrGetRetryable
-	}
-
-	return deliveries, nil
-}
-
 func (s *Service) MarkSuccess(ctx context.Context, id string) (*Delivery, error) {
 	if id == "" {
 		return nil, ErrInvalidDeliveryID
@@ -85,21 +75,6 @@ func (s *Service) MarkSuccess(ctx context.Context, id string) (*Delivery, error)
 		return nil, ErrUpdateStatus
 	}
 	s.logger.Info("delivery marked success", slog.String("delivery_id", id))
-	return updated, nil
-}
-
-func (s *Service) MarkRetry(ctx context.Context, id string) (*Delivery, error) {
-	if id == "" {
-		return nil, ErrInvalidDeliveryID
-	}
-	d := &Delivery{ID: id}
-	d.MarkRetry()
-	updated, err := s.repo.UpdateStatus(ctx, id, d.Status)
-	if err != nil {
-		s.logger.Error("failed to mark delivery retry", slog.String("delivery_id", id), slog.String("error", err.Error()))
-		return nil, ErrUpdateStatus
-	}
-	s.logger.Info("delivery marked retry", slog.String("delivery_id", id))
 	return updated, nil
 }
 
@@ -116,17 +91,4 @@ func (s *Service) MarkFailed(ctx context.Context, id string) (*Delivery, error) 
 	}
 	s.logger.Info("delivery marked failed", slog.String("delivery_id", id))
 	return updated, nil
-}
-
-func (s *Service) IncrementAttempts(ctx context.Context, id string) (*Delivery, error) {
-	if id == "" {
-		return nil, ErrInvalidDeliveryID
-	}
-	d, err := s.repo.IncrementAttempts(ctx, id)
-	if err != nil {
-		s.logger.Error("failed to increment attempts", slog.String("delivery_id", id), slog.String("error", err.Error()))
-		return nil, ErrIncrementAttempts
-	}
-
-	return d, nil
 }

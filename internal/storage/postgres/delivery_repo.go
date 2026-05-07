@@ -215,64 +215,6 @@ func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]deliv
 	return deliveries, nil
 }
 
-func (r *DeliveryRepository) GetRetryable(ctx context.Context, limit int) ([]delivery.Delivery, error) {
-	ctx, span := r.tracer.Start(ctx, "DeliveryRepository.GetRetryable")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.Int("limit", limit),
-	)
-
-	query := `
-	    SELECT id, event_id, webhook_id, attempts, status
-		FROM deliveries
-		WHERE status = 'RETRY'
-		ORDER BY created_at ASC
-		LIMIT $1
-	`
-	rows, err := r.db.Query(ctx, query, limit)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to query retryable deliveries")
-		r.logger.ErrorContext(ctx, "failed to query retryable deliveries",
-			"error", err,
-			"limit", limit,
-		)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var deliveries []delivery.Delivery
-
-	for rows.Next() {
-		var d delivery.Delivery
-
-		err := rows.Scan(
-			&d.ID,
-			&d.EventID,
-			&d.WebhookID,
-			&d.Attempts,
-			&d.Status,
-		)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to scan retryable deliveries")
-			r.logger.ErrorContext(ctx, "failed to scan retryable deliveries",
-				"error", err,
-				"limit", limit,
-			)
-			return nil, err
-		}
-
-		deliveries = append(deliveries, d)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return deliveries, nil
-}
-
 func (r *DeliveryRepository) UpdateStatus(ctx context.Context, id string, status delivery.Status) (*delivery.Delivery, error) {
 	ctx, span := r.tracer.Start(ctx, "DeliveryRepository.UpdateStatus")
 	defer span.End()
@@ -313,42 +255,5 @@ func (r *DeliveryRepository) UpdateStatus(ctx context.Context, id string, status
 
 		return nil, err
 	}
-	return &d, nil
-}
-
-func (r *DeliveryRepository) IncrementAttempts(ctx context.Context, id string) (*delivery.Delivery, error) {
-	ctx, span := r.tracer.Start(ctx, "DeliveryRepository.IncrementAttempts")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("delivery_id", id),
-	)
-
-	query := `
-	    UPDATE deliveries
-        SET attempts = attempts + 1
-        WHERE id = $1
-        RETURNING id, event_id, webhook_id, attempts, status
-		`
-
-	var d delivery.Delivery
-
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&d.ID,
-		&d.EventID,
-		&d.WebhookID,
-		&d.Attempts,
-		&d.Status,
-	)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to increment deliveries")
-		r.logger.ErrorContext(ctx, "failed to increment deliveries",
-			"error", err,
-			"delivery_id", id,
-		)
-		return nil, err
-	}
-
 	return &d, nil
 }

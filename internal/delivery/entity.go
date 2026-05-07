@@ -3,11 +3,9 @@ package delivery
 type Status string
 
 const (
-	StatusPending    Status = "PENDING"
-	StatusProcessing Status = "PROCESSING"
-	StatusSuccess    Status = "SUCCESS"
-	StatusFailed     Status = "FAILED"
-	StatusRetry      Status = "RETRY"
+	StatusPending Status = "PENDING"
+	StatusSuccess Status = "SUCCESS"
+	StatusFailed  Status = "FAILED"
 )
 
 type Delivery struct {
@@ -40,10 +38,6 @@ func (d *Delivery) RegisterAttempt() {
 
 func (d *Delivery) MarkSuccess() {
 	d.Status = StatusSuccess
-}
-
-func (d *Delivery) MarkRetry() {
-	d.Status = StatusRetry
 }
 
 func (d *Delivery) MarkFailed() {

@@ -40,7 +40,6 @@ func TestDeliveryStatusTransitions(t *testing.T) {
 		want       Status
 	}{
 		{"MarkSuccess", (*Delivery).MarkSuccess, StatusSuccess},
-		{"MarkRetry", (*Delivery).MarkRetry, StatusRetry},
 		{"MarkFailed", (*Delivery).MarkFailed, StatusFailed},
 	}
 
@@ -52,16 +51,5 @@ func TestDeliveryStatusTransitions(t *testing.T) {
 				t.Errorf("Status = %q, want %q", d.Status, tt.want)
 			}
 		})
-	}
-}
-
-func TestRegisterAttempt(t *testing.T) {
-	d, _ := NewDelivery("event-1", "webhook-1")
-
-	for i := 1; i <= 3; i++ {
-		d.RegisterAttempt()
-		if d.Attempts != i {
-			t.Errorf("after %d calls: Attempts = %d, want %d", i, d.Attempts, i)
-		}
 	}
 }

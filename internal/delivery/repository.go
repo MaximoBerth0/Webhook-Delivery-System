@@ -11,9 +11,6 @@ type DeliveryRepository interface {
 	GetByWebhookID(ctx context.Context, webhookID string) ([]Delivery, error)
 
 	GetPending(ctx context.Context, limit int) ([]Delivery, error)
-	GetRetryable(ctx context.Context, limit int) ([]Delivery, error)
 
 	UpdateStatus(ctx context.Context, id string, status Status) (*Delivery, error)
-
-	IncrementAttempts(ctx context.Context, id string) (*Delivery, error)
 }
