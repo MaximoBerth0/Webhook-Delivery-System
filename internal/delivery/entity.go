@@ -12,7 +12,6 @@ type Delivery struct {
 	ID        string
 	EventID   string
 	WebhookID string
-	Attempts  int
 	Status    Status
 }
 
@@ -27,13 +26,8 @@ func NewDelivery(eventID, webhookID string) (*Delivery, error) {
 	return &Delivery{
 		EventID:   eventID,
 		WebhookID: webhookID,
-		Attempts:  0,
 		Status:    StatusPending,
 	}, nil
-}
-
-func (d *Delivery) RegisterAttempt() {
-	d.Attempts++
 }
 
 func (d *Delivery) MarkSuccess() {

@@ -29,8 +29,8 @@ func (r *DeliveryRepository) Create(ctx context.Context, d *delivery.Delivery) e
 	defer span.End()
 
 	query := `
-        INSERT INTO deliveries (event_id, webhook_id, attempts, status)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO deliveries (event_id, webhook_id, status)
+        VALUES ($1, $2, $3)
         RETURNING id
     `
 	err := r.db.QueryRow(
@@ -38,7 +38,6 @@ func (r *DeliveryRepository) Create(ctx context.Context, d *delivery.Delivery) e
 		query,
 		d.EventID,
 		d.WebhookID,
-		d.Attempts,
 		d.Status,
 	).Scan(&d.ID)
 	if err != nil {
@@ -63,12 +62,12 @@ func (r *DeliveryRepository) GetByID(ctx context.Context, id string) (*delivery.
 
 	span.SetAttributes(attribute.String("delivery_id", id))
 
-	query := `SELECT id, event_id, webhook_id, attempts, status FROM deliveries WHERE id = $1`
+	query := `SELECT id, event_id, webhook_id, status FROM deliveries WHERE id = $1`
 
 	d := &delivery.Delivery{}
 
 	err := r.db.QueryRow(ctx, query, id).
-		Scan(&d.ID, &d.EventID, &d.WebhookID, &d.Attempts, &d.Status)
+		Scan(&d.ID, &d.EventID, &d.WebhookID, &d.Status)
 
 	if err != nil {
 		span.RecordError(err)
@@ -91,7 +90,7 @@ func (r *DeliveryRepository) GetByWebhookID(ctx context.Context, webhookID strin
 	ctx, span := r.tracer.Start(ctx, "DeliveryRepository.GetByWebhookID")
 	defer span.End()
 
-	query := `SELECT id, event_id, webhook_id, attempts, status FROM deliveries WHERE webhook_id = $1`
+	query := `SELECT id, event_id, webhook_id, status FROM deliveries WHERE webhook_id = $1`
 
 	span.SetAttributes(attribute.String("webhook_id", webhookID))
 
@@ -114,7 +113,6 @@ func (r *DeliveryRepository) GetByWebhookID(ctx context.Context, webhookID strin
 			&d.ID,
 			&d.EventID,
 			&d.WebhookID,
-			&d.Attempts,
 			&d.Status,
 		)
 		if err != nil {
@@ -145,8 +143,6 @@ func (r *DeliveryRepository) GetByWebhookID(ctx context.Context, webhookID strin
 }
 
 func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]delivery.Delivery, error) {
-	// locked by a concurrent worker (FOR UPDATE SKIP LOCKED)
-
 	ctx, span := r.tracer.Start(ctx, "DeliveryRepository.GetPending")
 	defer span.End()
 
@@ -155,17 +151,15 @@ func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]deliv
 	)
 
 	query := `
-        UPDATE deliveries
-        SET status = 'PROCESSING'
-        WHERE id IN (
-            SELECT id
-            FROM deliveries
-            WHERE status = 'PENDING'
-            ORDER BY created_at ASC
-            LIMIT $1
-            FOR UPDATE SKIP LOCKED
-        )
-        RETURNING id, event_id, webhook_id, attempts, status
+        SELECT d.id, d.event_id, d.webhook_id, d.status
+        FROM deliveries d
+        LEFT JOIN delivery_attempts a
+            ON a.delivery_id = d.id
+            AND a.attempt_number = 1
+        WHERE d.status = 'PENDING'
+          AND a.id IS NULL
+        ORDER BY d.created_at ASC
+        LIMIT $1
     `
 
 	rows, err := r.db.Query(ctx, query, limit)
@@ -187,7 +181,6 @@ func (r *DeliveryRepository) GetPending(ctx context.Context, limit int) ([]deliv
 			&d.ID,
 			&d.EventID,
 			&d.WebhookID,
-			&d.Attempts,
 			&d.Status,
 		)
 		if err != nil {
@@ -228,7 +221,7 @@ func (r *DeliveryRepository) UpdateStatus(ctx context.Context, id string, status
         UPDATE deliveries
         SET status = $1
         WHERE id = $2
-        RETURNING id, event_id, webhook_id, attempts, status
+        RETURNING id, event_id, webhook_id, status
     `
 
 	var d delivery.Delivery
@@ -236,7 +229,6 @@ func (r *DeliveryRepository) UpdateStatus(ctx context.Context, id string, status
 		&d.ID,
 		&d.EventID,
 		&d.WebhookID,
-		&d.Attempts,
 		&d.Status,
 	)
 

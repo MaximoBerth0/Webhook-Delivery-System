@@ -7,7 +7,7 @@ import (
 
 type DeliveryAttemptRepository interface {
 	CreateAttempt(ctx context.Context, a *DeliveryAttempt) error
-	GetByDeliveryID(ctx context.Context, deliveryID string) ([]DeliveryAttempt, error)
+	GetAttempts(ctx context.Context, deliveryID string) ([]DeliveryAttempt, error)
 
 	GetReadyAttempts(ctx context.Context, before time.Time) ([]*DeliveryAttempt, error)
 

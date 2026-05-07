@@ -25,7 +25,7 @@ func NewService(repo DeliveryAttemptRepository, idGen infrastructure.Generator, 
 
 // private method
 func (s *Service) createAttempt(ctx context.Context, deliveryID string, scheduledFor time.Time) (*DeliveryAttempt, error) {
-	existing, err := s.repo.GetByDeliveryID(ctx, deliveryID)
+	existing, err := s.repo.GetAttempts(ctx, deliveryID)
 	if err != nil {
 		s.logger.Error("failed to fetch existing attempts",
 			slog.String("delivery_id", deliveryID),
@@ -101,7 +101,7 @@ func (s *Service) GetAttempts(ctx context.Context, deliveryID string) ([]Deliver
 		slog.String("delivery_id", deliveryID),
 	)
 
-	attempts, err := s.repo.GetByDeliveryID(ctx, deliveryID)
+	attempts, err := s.repo.GetAttempts(ctx, deliveryID)
 	if err != nil {
 		s.logger.Error("failed to fetch attempts",
 			slog.String("delivery_id", deliveryID),

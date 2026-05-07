@@ -69,8 +69,8 @@ func (r *AttemptRepository) CreateAttempt(ctx context.Context, a *attempt.Delive
 	return nil
 }
 
-func (r *AttemptRepository) GetByDeliveryID(ctx context.Context, deliveryID string) ([]attempt.DeliveryAttempt, error) {
-	ctx, span := r.tracer.Start(ctx, "AttemptRepository.GetByDeliveryID")
+func (r *AttemptRepository) GetAttempts(ctx context.Context, deliveryID string) ([]attempt.DeliveryAttempt, error) {
+	ctx, span := r.tracer.Start(ctx, "AttemptRepository.GetAttempts")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("delivery_id", deliveryID))

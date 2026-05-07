@@ -3,9 +3,10 @@ package integrations
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 
+	"net/http/httptest"
 	"webhook-delivery-system/integrations/helpers"
 	"webhook-delivery-system/internal/event"
 	"webhook-delivery-system/internal/webhook"
@@ -56,8 +57,13 @@ func TestDeliveryRetriesFails(t *testing.T) {
 	// process the delivery multiple times to exhaust all retry attempts
 	for i := 0; i < 3; i++ {
 		t.Logf("Processing attempt #%d", i+1)
+
 		if err := env.Worker.ProcessOnce(ctx); err != nil {
 			t.Fatalf("ProcessOnce #%d failed: %v", i+1, err)
+		}
+
+		if i < 2 { // don't sleep after the last iteration
+			time.Sleep(2 * time.Second)
 		}
 	}
 
@@ -73,17 +79,17 @@ func TestDeliveryRetriesFails(t *testing.T) {
 
 	delivery := deliveries[0]
 
-	// Verify delivery ultimately failed after exhausting retries
+	// verify delivery ultimately failed after exhausting retries
 	if delivery.Status != "FAILED" {
 		t.Errorf("expected status 'FAILED' after all retries exhausted, got '%s'", delivery.Status)
 	}
 
-	// Verify correct event association
+	// verify correct event association
 	if delivery.EventID != createdEvent.ID {
 		t.Errorf("expected event_id %s, got %s", createdEvent.ID, delivery.EventID)
 	}
 
-	// Verify all retry attempts were made
+	// verify all retry attempts were made
 	if requestCount != 3 {
 		t.Errorf("expected exactly %d HTTP requests (max_attempts), got %d", 3, requestCount)
 	}

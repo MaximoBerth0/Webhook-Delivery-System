@@ -13,9 +13,6 @@ func TestNewDelivery(t *testing.T) {
 		if d.Status != StatusPending {
 			t.Errorf("Status = %q, want %q", d.Status, StatusPending)
 		}
-		if d.Attempts != 0 {
-			t.Errorf("Attempts = %d, want 0", d.Attempts)
-		}
 	})
 
 	t.Run("empty eventID", func(t *testing.T) {

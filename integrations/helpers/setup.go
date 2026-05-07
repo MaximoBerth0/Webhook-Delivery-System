@@ -27,6 +27,7 @@ type TestEnv struct {
 	Server      *httptest.Server
 	Pool        *pgxpool.Pool
 	DeliverySvc *delivery.Service
+	AttemptSvc  *attempt.Service
 	WebhookSvc  *webhook.Service
 	EventSvc    *event.Service
 	Worker      *worker.Dispatcher
