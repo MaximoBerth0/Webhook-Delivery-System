@@ -40,7 +40,7 @@ type attemptService interface {
 
 const (
 	workerPollInterval = 5 * time.Second
-	workerBatchSize    = 10
+	workerBatchSize    = 5
 )
 
 type DeliveryWorker struct {
