@@ -1,0 +1,63 @@
+# local development 
+
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://webhook:webhook@postgres:5432/webhooks?sslmode=disable
+      - ENVIRONMENT=development
+      - OTEL_EXPORTER_URL=http://otel-collector:4318
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: webhooks
+      POSTGRES_USER: webhook
+      POSTGRES_PASSWORD: webhook
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webhook"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+
+  # Opctional: OTEL collector for observability
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4318:4318"  # OTLP HTTP
+    networks:
+      - app-network
+
+volumes:
+  postgres-data:
+
+networks:
+  app-network:
+    driver: bridge
