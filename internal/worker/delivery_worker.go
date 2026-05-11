@@ -19,7 +19,7 @@ import (
 )
 
 type Signer interface {
-	Sign(payload []byte) string
+	Sign(payload []byte, secret string) string
 }
 
 type deliveryService interface {
@@ -248,7 +248,7 @@ func (w *DeliveryWorker) dispatch(ctx context.Context, url, secret string, paylo
 	req.Header.Set("Content-Type", "application/json")
 
 	if secret != "" {
-		req.Header.Set("X-Webhook-Signature", w.signer.Sign(payload))
+		req.Header.Set("X-Webhook-Signature", w.signer.Sign(payload, secret))
 	}
 
 	resp, err := w.httpClient.Do(req)

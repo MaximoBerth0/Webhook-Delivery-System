@@ -79,7 +79,7 @@ func SetupEnv(t *testing.T) *TestEnv {
 	dSvc := delivery.NewService(dRepo, idGen, log)
 	aSvc := attempt.NewService(aRepo, idGen, log)
 
-	signer := infrastructure.NewHMACSigner("")
+	signer := infrastructure.NewHMACSigner()
 	deliveryWorker := worker.NewDeliveryWorker(dSvc, wRepo, eRepo, aSvc, signer, log)
 	dispatcher := worker.NewDispatcher(dSvc, deliveryWorker, 1, 100*time.Millisecond, 10)
 

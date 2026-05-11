@@ -2,7 +2,7 @@ package worker
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -10,6 +10,7 @@ import (
 type Dispatcher struct {
 	deliverySvc    deliveryService
 	deliveryWorker *DeliveryWorker
+	logger         *slog.Logger
 	concurrency    int
 	pollInterval   time.Duration
 	batchSize      int
@@ -20,6 +21,7 @@ type Dispatcher struct {
 func NewDispatcher(
 	svc deliveryService,
 	worker *DeliveryWorker,
+	logger *slog.Logger,
 	concurrency int,
 	pollInterval time.Duration,
 	batchSize int,
@@ -27,6 +29,7 @@ func NewDispatcher(
 	return &Dispatcher{
 		deliverySvc:    svc,
 		deliveryWorker: worker,
+		logger:         logger,
 		concurrency:    concurrency,
 		pollInterval:   pollInterval,
 		batchSize:      batchSize,
@@ -49,23 +52,29 @@ func (d *Dispatcher) Stop() {
 	if d.cancel != nil {
 		d.cancel()
 	}
-	d.wg.Wait() // blocks until all goroutines finish cleanly
+	d.wg.Wait()
 }
 
 func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("worker %d shutting down", workerID)
+			d.logger.Info("worker shutting down", slog.Int("worker_id", workerID))
 			return
 		default:
 			if err := d.deliveryWorker.ProcessScheduledAttempts(ctx); err != nil {
-				log.Printf("worker %d: error processing scheduled attempts: %v", workerID, err)
+				d.logger.Error("error processing scheduled attempts",
+					slog.Int("worker_id", workerID),
+					slog.String("error", err.Error()),
+				)
 			}
 
 			deliveries, err := d.deliverySvc.GetPending(ctx, d.batchSize)
 			if err != nil {
-				log.Printf("worker %d: error fetching pending: %v", workerID, err)
+				d.logger.Error("error fetching pending deliveries",
+					slog.Int("worker_id", workerID),
+					slog.String("error", err.Error()),
+				)
 				d.sleep(ctx)
 				continue
 			}
@@ -75,44 +84,28 @@ func (d *Dispatcher) loop(ctx context.Context, workerID int) {
 				continue
 			}
 
-			log.Printf("worker %d: picked up %d deliveries", workerID, len(deliveries))
+			d.logger.Debug("picked up deliveries",
+				slog.Int("worker_id", workerID),
+				slog.Int("count", len(deliveries)),
+			)
 
 			for _, del := range deliveries {
 				del := del
 				if err := d.deliveryWorker.ProcessFirstAttempt(ctx, &del); err != nil {
-					log.Printf("worker %d: delivery %s failed: %v", workerID, del.ID, err)
+					d.logger.Error("delivery failed",
+						slog.Int("worker_id", workerID),
+						slog.String("delivery_id", del.ID),
+						slog.String("error", err.Error()),
+					)
 				}
 			}
 		}
 	}
 }
 
-// sleep respects context cancellation so shutdown is immediate
 func (d *Dispatcher) sleep(ctx context.Context) {
 	select {
 	case <-ctx.Done():
 	case <-time.After(d.pollInterval):
 	}
-}
-
-func (d *Dispatcher) ProcessOnce(ctx context.Context) error {
-	// process any scheduled retries that are ready
-	if err := d.deliveryWorker.ProcessScheduledAttempts(ctx); err != nil {
-		return err
-	}
-
-	deliveries, err := d.deliverySvc.GetPending(ctx, d.batchSize)
-	if err != nil {
-		return err
-	}
-
-	// process each delivery once
-	for _, del := range deliveries {
-		del := del // capture loop variable
-		if err := d.deliveryWorker.ProcessFirstAttempt(ctx, &del); err != nil {
-			log.Printf("delivery %s failed: %v", del.ID, err)
-		}
-	}
-
-	return nil
 }

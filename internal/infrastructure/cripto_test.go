@@ -18,8 +18,8 @@ func expectedSignature(secret, payload string) string {
 }
 
 func TestHMACSigner_Sign_Prefix(t *testing.T) {
-	signer := NewHMACSigner("my-secret")
-	sig := signer.Sign([]byte("hello"))
+	signer := NewHMACSigner()
+	sig := signer.Sign([]byte("hello"), "my-secret")
 	if !strings.HasPrefix(sig, "sha256=") {
 		t.Errorf("signature missing sha256= prefix: %q", sig)
 	}
@@ -28,8 +28,8 @@ func TestHMACSigner_Sign_Prefix(t *testing.T) {
 func TestHMACSigner_Sign_CorrectValue(t *testing.T) {
 	secret := "my-secret"
 	payload := []byte("hello world")
-	signer := NewHMACSigner(secret)
-	got := signer.Sign(payload)
+	signer := NewHMACSigner()
+	got := signer.Sign(payload, secret)
 	want := expectedSignature(secret, "hello world")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
@@ -37,37 +37,73 @@ func TestHMACSigner_Sign_CorrectValue(t *testing.T) {
 }
 
 func TestHMACSigner_Sign_DifferentSecrets(t *testing.T) {
+	signer := NewHMACSigner()
 	payload := []byte("same payload")
-	sig1 := NewHMACSigner("secret-a").Sign(payload)
-	sig2 := NewHMACSigner("secret-b").Sign(payload)
+	sig1 := signer.Sign(payload, "secret-a")
+	sig2 := signer.Sign(payload, "secret-b")
 	if sig1 == sig2 {
 		t.Error("different secrets should produce different signatures")
 	}
 }
 
 func TestHMACSigner_Sign_DifferentPayloads(t *testing.T) {
-	signer := NewHMACSigner("my-secret")
-	sig1 := signer.Sign([]byte("payload-one"))
-	sig2 := signer.Sign([]byte("payload-two"))
+	signer := NewHMACSigner()
+	sig1 := signer.Sign([]byte("payload-one"), "my-secret")
+	sig2 := signer.Sign([]byte("payload-two"), "my-secret")
 	if sig1 == sig2 {
 		t.Error("different payloads should produce different signatures")
 	}
 }
 
 func TestHMACSigner_Sign_Deterministic(t *testing.T) {
-	signer := NewHMACSigner("my-secret")
+	signer := NewHMACSigner()
 	payload := []byte("deterministic")
-	if signer.Sign(payload) != signer.Sign(payload) {
+	if signer.Sign(payload, "my-secret") != signer.Sign(payload, "my-secret") {
 		t.Error("same input should always produce same signature")
 	}
 }
 
 func TestHMACSigner_Sign_EmptyPayload(t *testing.T) {
 	secret := "my-secret"
-	signer := NewHMACSigner(secret)
-	got := signer.Sign([]byte{})
+	signer := NewHMACSigner()
+	got := signer.Sign([]byte{}, secret)
 	want := expectedSignature(secret, "")
 	if got != want {
 		t.Errorf("empty payload: got %q, want %q", got, want)
+	}
+}
+
+func TestHMACSigner_Verify_Valid(t *testing.T) {
+	signer := NewHMACSigner()
+	payload := []byte("hello world")
+	secret := "my-secret"
+	sig := signer.Sign(payload, secret)
+	if !signer.Verify(payload, secret, sig) {
+		t.Error("expected Verify to return true for valid signature")
+	}
+}
+
+func TestHMACSigner_Verify_WrongSecret(t *testing.T) {
+	signer := NewHMACSigner()
+	payload := []byte("hello world")
+	sig := signer.Sign(payload, "correct-secret")
+	if signer.Verify(payload, "wrong-secret", sig) {
+		t.Error("expected Verify to return false for wrong secret")
+	}
+}
+
+func TestHMACSigner_Verify_TamperedPayload(t *testing.T) {
+	signer := NewHMACSigner()
+	secret := "my-secret"
+	sig := signer.Sign([]byte("original"), secret)
+	if signer.Verify([]byte("tampered"), secret, sig) {
+		t.Error("expected Verify to return false for tampered payload")
+	}
+}
+
+func TestHMACSigner_Verify_InvalidSignatureFormat(t *testing.T) {
+	signer := NewHMACSigner()
+	if signer.Verify([]byte("payload"), "secret", "not-hex!!") {
+		t.Error("expected Verify to return false for invalid hex")
 	}
 }

@@ -26,6 +26,7 @@ OTEL_ENABLED=true
 OTEL_EXPORTER_URL=http://otel-collector:4318
 ALLOWED_ORIGINS=*
 RATE_LIMIT_RPS=100
+WORKER_CONCURRENCY=5
 WORKER_POLL_INTERVAL=5s
 WORKER_BATCH_SIZE=5
 */
@@ -72,6 +73,7 @@ type SecurityConfig struct {
 }
 
 type WorkerConfig struct {
+	Concurrency  int
 	PollInterval time.Duration
 	BatchSize    int
 }
@@ -108,6 +110,7 @@ func Load() (*Config, error) {
 		Worker: WorkerConfig{
 			PollInterval: parseDurationOrDefault(getEnv("WORKER_POLL_INTERVAL"), 5*time.Second),
 			BatchSize:    parseIntOrDefault(getEnv("WORKER_BATCH_SIZE"), 5),
+			Concurrency:  parseIntOrDefault(getEnv("WORKER_CONCURRENCY"), 3),
 		},
 	}
 
