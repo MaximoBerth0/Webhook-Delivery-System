@@ -66,7 +66,12 @@ func (h *DeliveryHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "delivery retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }
 
 func (h *DeliveryHandler) ListByWebhook(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +107,12 @@ func (h *DeliveryHandler) ListByWebhook(w http.ResponseWriter, r *http.Request) 
 	span.SetStatus(codes.Ok, "deliveries retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deliveries)
+	if err := json.NewEncoder(w).Encode(deliveries); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }
 
 func (h *DeliveryHandler) GetAttempts(w http.ResponseWriter, r *http.Request) {
@@ -131,5 +141,10 @@ func (h *DeliveryHandler) GetAttempts(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "attempts retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(attempts)
+	if err := json.NewEncoder(w).Encode(attempts); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }

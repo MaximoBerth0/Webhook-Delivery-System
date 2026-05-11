@@ -1,0 +1,62 @@
+# .dockerignore
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+*.md
+README.md
+LICENSE
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development
+docker-compose.yml
+docker-compose.*.yml
+Makefile
+
+# Testing
+*_test.go
+testdata/
+coverage.out
+*.coverage
+
+# Documentation
+docs/
+*.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Terraform/Infrastructure
+terraform/
+*.tfvars
+*.tfstate
+
+# Build artifacts (already in .gitignore but good to be explicit)
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log

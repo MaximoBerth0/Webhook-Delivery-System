@@ -1,0 +1,37 @@
+# .gitignore
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.staging
+
+# Allow example files
+!.env.example
+!.env.production
+
+# AWS credentials
+.aws/
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+dist/
+*.exe

@@ -21,12 +21,12 @@ func main() {
 
 	log := infrastructure.NewLog()
 
-	shutdown, err := infrastructure.SetupTelemetry(ctx, "webhook-delivery-system")
+	shutdown, err := infrastructure.SetupTelemetry(ctx)
 	if err != nil {
-		log.Error("telemetry setup failed", "error", err)
-	} else {
-		defer shutdown(ctx)
+		log.Error("failed to setup telemetry:", "error", err.Error())
+		os.Exit(1)
 	}
+	defer shutdown(ctx)
 
 	pool, err := storage.NewPool(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
