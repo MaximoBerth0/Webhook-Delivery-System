@@ -94,10 +94,16 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "event created")
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status":   "event created",
 		"event_id": createdEvent.ID,
-	})
+	}); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("event_id", createdEvent.ID),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }
 
 func (h *EventHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
@@ -135,5 +141,10 @@ func (h *EventHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "events retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	if err := json.NewEncoder(w).Encode(events); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }

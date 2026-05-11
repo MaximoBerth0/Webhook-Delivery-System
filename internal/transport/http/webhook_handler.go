@@ -85,6 +85,13 @@ func (h *WebhookHandler) CreateWebhook(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "webhook created")
 
 	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(created); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("webhook_id", created.ID),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }
 
 func (h *WebhookHandler) GetByID(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +124,12 @@ func (h *WebhookHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	span.SetStatus(codes.Ok, "webhook retrieved")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		h.logger.Error("failed to encode response",
+			slog.String("error", err.Error()),
+			slog.String("trace_id", getTraceID(ctx)),
+		)
+	}
 }
 
 func (h *WebhookHandler) UpdateWebhook(w http.ResponseWriter, r *http.Request) {

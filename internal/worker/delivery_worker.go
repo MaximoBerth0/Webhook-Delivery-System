@@ -38,11 +38,6 @@ type attemptService interface {
 	CalculateNextAttemptTime(attemptNumber int, failedAt time.Time) time.Time
 }
 
-const (
-	workerPollInterval = 5 * time.Second
-	workerBatchSize    = 5
-)
-
 type DeliveryWorker struct {
 	deliverySvc deliveryService
 	webhookRepo webhook.WebhookRepository
@@ -52,6 +47,9 @@ type DeliveryWorker struct {
 	httpClient  *http.Client
 	logger      *slog.Logger
 	tracer      trace.Tracer
+	// Configuration
+	pollInterval time.Duration
+	batchSize    int
 }
 
 func NewDeliveryWorker(
@@ -63,14 +61,16 @@ func NewDeliveryWorker(
 	logger *slog.Logger,
 ) *DeliveryWorker {
 	return &DeliveryWorker{
-		deliverySvc: deliverySvc,
-		webhookRepo: webhookRepo,
-		eventRepo:   eventRepo,
-		attemptSvc:  attemptSvc,
-		signer:      signer,
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
-		logger:      logger,
-		tracer:      otel.Tracer("worker.delivery"),
+		deliverySvc:  deliverySvc,
+		webhookRepo:  webhookRepo,
+		eventRepo:    eventRepo,
+		attemptSvc:   attemptSvc,
+		signer:       signer,
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		logger:       logger,
+		tracer:       otel.Tracer("worker.delivery"),
+		pollInterval: parseDuration(getEnv("WORKER_POLL_INTERVAL", "5s")),
+		batchSize:    parseInt(getEnv("WORKER_BATCH_SIZE", "5")),
 	}
 }
 
@@ -86,7 +86,7 @@ func (w *DeliveryWorker) Run(ctx context.Context) {
 			w.logger.ErrorContext(ctx, "error processing scheduled attempts", "error", err)
 		}
 
-		deliveries, err := w.deliverySvc.GetPending(ctx, workerBatchSize)
+		deliveries, err := w.deliverySvc.GetPending(ctx, w.batchSize)
 		if err != nil {
 			w.logger.ErrorContext(ctx, "error fetching pending deliveries", "error", err)
 			w.sleep(ctx)
@@ -267,6 +267,6 @@ func (w *DeliveryWorker) dispatch(ctx context.Context, url, secret string, paylo
 func (w *DeliveryWorker) sleep(ctx context.Context) {
 	select {
 	case <-ctx.Done():
-	case <-time.After(workerPollInterval):
+	case <-time.After(w.pollInterval):
 	}
 }
