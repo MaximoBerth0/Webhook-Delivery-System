@@ -54,16 +54,25 @@ func TestDeliveryRetriesFails(t *testing.T) {
 		t.Fatalf("create delivery: %v", err)
 	}
 
-	// process the delivery multiple times to exhaust all retry attempts
-	for i := 0; i < 3; i++ {
-		t.Logf("Processing attempt #%d", i+1)
+	// attempt 1: delivery is still PENDING, so fetch it and kick off the first attempt
+	t.Log("Processing attempt #1 (first attempt)")
+	pending, err := env.DeliverySvc.GetPending(ctx, 1)
+	if err != nil {
+		t.Fatalf("get pending deliveries: %v", err)
+	}
+	if len(pending) == 0 {
+		t.Fatal("expected a pending delivery, got none")
+	}
+	if err := env.DeliveryWorker.ProcessFirstAttempt(ctx, &pending[0]); err != nil {
+		t.Fatalf("ProcessFirstAttempt failed: %v", err)
+	}
 
-		if err := env.Worker.ProcessOnce(ctx); err != nil {
-			t.Fatalf("ProcessOnce #%d failed: %v", i+1, err)
-		}
-
-		if i < 2 { // don't sleep after the last iteration
-			time.Sleep(2 * time.Second)
+	// attempts 2 and 3: the worker scheduled retries, wait for them to become due then process
+	for i := 2; i <= 3; i++ {
+		time.Sleep(2 * time.Second)
+		t.Logf("Processing attempt #%d (scheduled retry)", i)
+		if err := env.DeliveryWorker.ProcessScheduledAttempts(ctx); err != nil {
+			t.Fatalf("ProcessScheduledAttempts #%d failed: %v", i, err)
 		}
 	}
 

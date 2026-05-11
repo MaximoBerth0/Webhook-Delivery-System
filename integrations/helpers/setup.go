@@ -15,6 +15,7 @@ import (
 	"webhook-delivery-system/internal/delivery"
 	"webhook-delivery-system/internal/event"
 	"webhook-delivery-system/internal/infrastructure"
+	"webhook-delivery-system/internal/infrastructure/config"
 	"webhook-delivery-system/internal/storage"
 	pgstore "webhook-delivery-system/internal/storage/postgres"
 	transporthttp "webhook-delivery-system/internal/transport/http"
@@ -24,13 +25,20 @@ import (
 )
 
 type TestEnv struct {
-	Server      *httptest.Server
-	Pool        *pgxpool.Pool
-	DeliverySvc *delivery.Service
-	AttemptSvc  *attempt.Service
-	WebhookSvc  *webhook.Service
-	EventSvc    *event.Service
-	Worker      *worker.Dispatcher
+	Server         *httptest.Server
+	Pool           *pgxpool.Pool
+	DeliverySvc    *delivery.Service
+	AttemptSvc     *attempt.Service
+	WebhookSvc     *webhook.Service
+	EventSvc       *event.Service
+	Worker         *worker.Dispatcher
+	DeliveryWorker *worker.DeliveryWorker
+}
+
+var testWorkerConfig = config.WorkerConfig{
+	Concurrency:  2,
+	PollInterval: 100 * time.Millisecond,
+	BatchSize:    5,
 }
 
 func SetupEnv(t *testing.T) *TestEnv {
@@ -81,7 +89,7 @@ func SetupEnv(t *testing.T) *TestEnv {
 
 	signer := infrastructure.NewHMACSigner()
 	deliveryWorker := worker.NewDeliveryWorker(dSvc, wRepo, eRepo, aSvc, signer, log)
-	dispatcher := worker.NewDispatcher(dSvc, deliveryWorker, 1, 100*time.Millisecond, 10)
+	dispatcher := worker.NewDispatcher(dSvc, deliveryWorker, log, testWorkerConfig)
 
 	eventHandler := transporthttp.NewEventHandler(eSvc, log)
 	deliveryHandler := transporthttp.NewDeliveryHandler(dSvc, aSvc, log)
@@ -95,11 +103,13 @@ func SetupEnv(t *testing.T) *TestEnv {
 	t.Cleanup(func() { server.Close() })
 
 	return &TestEnv{
-		Server:      server,
-		Pool:        pool,
-		DeliverySvc: dSvc,
-		WebhookSvc:  wSvc,
-		EventSvc:    eSvc,
-		Worker:      dispatcher,
+		Server:         server,
+		Pool:           pool,
+		DeliverySvc:    dSvc,
+		AttemptSvc:     aSvc,
+		WebhookSvc:     wSvc,
+		EventSvc:       eSvc,
+		Worker:         dispatcher,
+		DeliveryWorker: deliveryWorker,
 	}
 }

@@ -102,12 +102,10 @@ func main() {
 		dSvc,
 		deliveryWorker,
 		logger,
-		cfg.Worker.Concurrency,
-		cfg.Worker.PollInterval,
-		cfg.Worker.BatchSize,
+		cfg.Worker,
 	)
 
-	// start dispatcher (manages all worker goroutines internally)
+	// start dispatcher
 	logger.Info("starting delivery workers",
 		slog.Int("concurrency", cfg.Worker.Concurrency),
 		slog.Duration("poll_interval", cfg.Worker.PollInterval),
@@ -161,10 +159,6 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(ctx, cfg.Server.ShutdownTimeout)
 		defer cancel()
 
-		// stop dispatcher (waits for all workers)
-		dispatcher.Stop()
-		logger.Info("all workers stopped")
-
 		// shutdown HTTP server
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("graceful shutdown failed",
@@ -178,5 +172,9 @@ func main() {
 		}
 
 		logger.Info("shutdown complete")
+
+		// stop dispatcher (waits for all workers)
+		dispatcher.Stop()
+		logger.Info("all workers stopped")
 	}
 }

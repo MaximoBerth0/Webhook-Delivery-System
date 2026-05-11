@@ -52,9 +52,16 @@ func TestFullDeliverySuccess(t *testing.T) {
 		t.Fatalf("create delivery: %v", err)
 	}
 
-	//process the delivery
-	if err := env.Worker.ProcessOnce(ctx); err != nil {
-		t.Fatalf("ProcessOnce failed: %v", err)
+	// process the delivery
+	pending, err := env.DeliverySvc.GetPending(ctx, 1)
+	if err != nil {
+		t.Fatalf("get pending deliveries: %v", err)
+	}
+	if len(pending) == 0 {
+		t.Fatal("expected a pending delivery, got none")
+	}
+	if err := env.DeliveryWorker.ProcessFirstAttempt(ctx, &pending[0]); err != nil {
+		t.Fatalf("ProcessFirstAttempt failed: %v", err)
 	}
 
 	deliveries, err := env.DeliverySvc.GetByWebhookID(ctx, webhook.ID)
